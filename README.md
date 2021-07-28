@@ -18,3 +18,12 @@ git clone git@github.com:fulcrumapp/fulcrum-desktop.git
 cd fulcrum-desktop
 yarn
 ```
+
+### Production
+
+To run in production, build as a docker image.
+
+```sh
+docker build . -t fulcrum-desktop:latest
+docker run fulcrum-desktop:latest
+```
