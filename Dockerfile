@@ -14,7 +14,7 @@ RUN apt-get update -y && apt-get install -y \
       tee /etc/apt/sources.list.d/yarn.list && \
     add-apt-repository -y ppa:ubuntugis/ppa && \
     curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
-    apt-get update -y && apt-get install -y \
+    apt-get update -y && apt-get install -y --force-yes \
       libjson0 \
       libjson0-dev \
       libsqlite3-dev \
