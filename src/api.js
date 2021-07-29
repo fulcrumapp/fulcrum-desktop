@@ -9,12 +9,11 @@ import APIClient from './api/client';
 import SchemaLoader from './utils/schema-loader';
 import * as data from './models';
 
-const api = {};
-
-Object.assign(api, {
+export {
   core,
   data,
   ReportGenerator,
+  HtmlToPdf,
   RecordValues,
   SQLiteRecordValues,
   PostgresRecordValues,
@@ -23,8 +22,5 @@ Object.assign(api, {
   MSSQL,
   PersistentObject,
   APIClient,
-  HtmlToPdf,
   SchemaLoader
-});
-
-export default api;
+};

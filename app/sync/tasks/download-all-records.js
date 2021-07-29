@@ -1,0 +1,63 @@
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = void 0;
+
+var _task = _interopRequireDefault(require("./task"));
+
+var _downloadRecords = _interopRequireDefault(require("./download-records"));
+
+var _downloadPhotos = _interopRequireDefault(require("./download-photos"));
+
+var _downloadVideos = _interopRequireDefault(require("./download-videos"));
+
+var _downloadAudio = _interopRequireDefault(require("./download-audio"));
+
+var _downloadSignatures = _interopRequireDefault(require("./download-signatures"));
+
+var _app = _interopRequireDefault(require("../../app"));
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+class DownloadAllRecords extends _task.default {
+  async run({
+    dataSource
+  }) {
+    const forms = await this.account.findActiveForms();
+    const includedForms = this.includedForms;
+
+    for (const form of forms) {
+      if (includedForms != null && includedForms.indexOf(form.id) === -1) {
+        continue;
+      }
+
+      await new Promise((resolve, reject) => {
+        form.load(dataSource, resolve);
+      });
+      this.synchronizer.addTask(new _downloadRecords.default({
+        form: form,
+        ...this.synchronizer.taskParams
+      }));
+    } // download media here to make sure the tasks are ordered after the records
+
+
+    this.synchronizer.addTask(new _downloadPhotos.default(this.synchronizer.taskParams));
+    this.synchronizer.addTask(new _downloadVideos.default(this.synchronizer.taskParams));
+    this.synchronizer.addTask(new _downloadAudio.default(this.synchronizer.taskParams));
+    this.synchronizer.addTask(new _downloadSignatures.default(this.synchronizer.taskParams));
+  }
+
+  get includedForms() {
+    if (_app.default.args.form) {
+      return Array.isArray(_app.default.args.form) ? _app.default.args.form : [_app.default.args.form];
+    }
+
+    return null;
+  }
+
+}
+
+exports.default = DownloadAllRecords;
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbIi4uLy4uLy4uL3NyYy9zeW5jL3Rhc2tzL2Rvd25sb2FkLWFsbC1yZWNvcmRzLmpzIl0sIm5hbWVzIjpbIkRvd25sb2FkQWxsUmVjb3JkcyIsIlRhc2siLCJydW4iLCJkYXRhU291cmNlIiwiZm9ybXMiLCJhY2NvdW50IiwiZmluZEFjdGl2ZUZvcm1zIiwiaW5jbHVkZWRGb3JtcyIsImZvcm0iLCJpbmRleE9mIiwiaWQiLCJQcm9taXNlIiwicmVzb2x2ZSIsInJlamVjdCIsImxvYWQiLCJzeW5jaHJvbml6ZXIiLCJhZGRUYXNrIiwiRG93bmxvYWRSZWNvcmRzIiwidGFza1BhcmFtcyIsIkRvd25sb2FkUGhvdG9zIiwiRG93bmxvYWRWaWRlb3MiLCJEb3dubG9hZEF1ZGlvIiwiRG93bmxvYWRTaWduYXR1cmVzIiwiYXBwIiwiYXJncyIsIkFycmF5IiwiaXNBcnJheSJdLCJtYXBwaW5ncyI6Ijs7Ozs7OztBQUFBOztBQUNBOztBQUNBOztBQUNBOztBQUNBOztBQUNBOztBQUNBOzs7O0FBRWUsTUFBTUEsa0JBQU4sU0FBaUNDLGFBQWpDLENBQXNDO0FBQzFDLFFBQUhDLEdBQUcsQ0FBQztBQUFDQyxJQUFBQTtBQUFELEdBQUQsRUFBZTtBQUN0QixVQUFNQyxLQUFLLEdBQUcsTUFBTSxLQUFLQyxPQUFMLENBQWFDLGVBQWIsRUFBcEI7QUFFQSxVQUFNQyxhQUFhLEdBQUcsS0FBS0EsYUFBM0I7O0FBRUEsU0FBSyxNQUFNQyxJQUFYLElBQW1CSixLQUFuQixFQUEwQjtBQUN4QixVQUFJRyxhQUFhLElBQUksSUFBakIsSUFBeUJBLGFBQWEsQ0FBQ0UsT0FBZCxDQUFzQkQsSUFBSSxDQUFDRSxFQUEzQixNQUFtQyxDQUFDLENBQWpFLEVBQW9FO0FBQ2xFO0FBQ0Q7O0FBRUQsWUFBTSxJQUFJQyxPQUFKLENBQVksQ0FBQ0MsT0FBRCxFQUFVQyxNQUFWLEtBQXFCO0FBQ3JDTCxRQUFBQSxJQUFJLENBQUNNLElBQUwsQ0FBVVgsVUFBVixFQUFzQlMsT0FBdEI7QUFDRCxPQUZLLENBQU47QUFJQSxXQUFLRyxZQUFMLENBQWtCQyxPQUFsQixDQUEwQixJQUFJQyx3QkFBSixDQUFvQjtBQUFDVCxRQUFBQSxJQUFJLEVBQUVBLElBQVA7QUFBYSxXQUFHLEtBQUtPLFlBQUwsQ0FBa0JHO0FBQWxDLE9BQXBCLENBQTFCO0FBQ0QsS0FmcUIsQ0FpQnRCOzs7QUFDQSxTQUFLSCxZQUFMLENBQWtCQyxPQUFsQixDQUEwQixJQUFJRyx1QkFBSixDQUFtQixLQUFLSixZQUFMLENBQWtCRyxVQUFyQyxDQUExQjtBQUNBLFNBQUtILFlBQUwsQ0FBa0JDLE9BQWxCLENBQTBCLElBQUlJLHVCQUFKLENBQW1CLEtBQUtMLFlBQUwsQ0FBa0JHLFVBQXJDLENBQTFCO0FBQ0EsU0FBS0gsWUFBTCxDQUFrQkMsT0FBbEIsQ0FBMEIsSUFBSUssc0JBQUosQ0FBa0IsS0FBS04sWUFBTCxDQUFrQkcsVUFBcEMsQ0FBMUI7QUFDQSxTQUFLSCxZQUFMLENBQWtCQyxPQUFsQixDQUEwQixJQUFJTSwyQkFBSixDQUF1QixLQUFLUCxZQUFMLENBQWtCRyxVQUF6QyxDQUExQjtBQUNEOztBQUVnQixNQUFiWCxhQUFhLEdBQUc7QUFDbEIsUUFBSWdCLGFBQUlDLElBQUosQ0FBU2hCLElBQWIsRUFBbUI7QUFDakIsYUFBT2lCLEtBQUssQ0FBQ0MsT0FBTixDQUFjSCxhQUFJQyxJQUFKLENBQVNoQixJQUF2QixJQUErQmUsYUFBSUMsSUFBSixDQUFTaEIsSUFBeEMsR0FBK0MsQ0FBRWUsYUFBSUMsSUFBSixDQUFTaEIsSUFBWCxDQUF0RDtBQUNEOztBQUVELFdBQU8sSUFBUDtBQUNEOztBQS9Ca0QiLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgVGFzayBmcm9tICcuL3Rhc2snO1xuaW1wb3J0IERvd25sb2FkUmVjb3JkcyBmcm9tICcuL2Rvd25sb2FkLXJlY29yZHMnO1xuaW1wb3J0IERvd25sb2FkUGhvdG9zIGZyb20gJy4vZG93bmxvYWQtcGhvdG9zJztcbmltcG9ydCBEb3dubG9hZFZpZGVvcyBmcm9tICcuL2Rvd25sb2FkLXZpZGVvcyc7XG5pbXBvcnQgRG93bmxvYWRBdWRpbyBmcm9tICcuL2Rvd25sb2FkLWF1ZGlvJztcbmltcG9ydCBEb3dubG9hZFNpZ25hdHVyZXMgZnJvbSAnLi9kb3dubG9hZC1zaWduYXR1cmVzJztcbmltcG9ydCBhcHAgZnJvbSAnLi4vLi4vYXBwJztcblxuZXhwb3J0IGRlZmF1bHQgY2xhc3MgRG93bmxvYWRBbGxSZWNvcmRzIGV4dGVuZHMgVGFzayB7XG4gIGFzeW5jIHJ1bih7ZGF0YVNvdXJjZX0pIHtcbiAgICBjb25zdCBmb3JtcyA9IGF3YWl0IHRoaXMuYWNjb3VudC5maW5kQWN0aXZlRm9ybXMoKTtcblxuICAgIGNvbnN0IGluY2x1ZGVkRm9ybXMgPSB0aGlzLmluY2x1ZGVkRm9ybXM7XG5cbiAgICBmb3IgKGNvbnN0IGZvcm0gb2YgZm9ybXMpIHtcbiAgICAgIGlmIChpbmNsdWRlZEZvcm1zICE9IG51bGwgJiYgaW5jbHVkZWRGb3Jtcy5pbmRleE9mKGZvcm0uaWQpID09PSAtMSkge1xuICAgICAgICBjb250aW51ZTtcbiAgICAgIH1cblxuICAgICAgYXdhaXQgbmV3IFByb21pc2UoKHJlc29sdmUsIHJlamVjdCkgPT4ge1xuICAgICAgICBmb3JtLmxvYWQoZGF0YVNvdXJjZSwgcmVzb2x2ZSk7XG4gICAgICB9KTtcblxuICAgICAgdGhpcy5zeW5jaHJvbml6ZXIuYWRkVGFzayhuZXcgRG93bmxvYWRSZWNvcmRzKHtmb3JtOiBmb3JtLCAuLi50aGlzLnN5bmNocm9uaXplci50YXNrUGFyYW1zfSkpO1xuICAgIH1cblxuICAgIC8vIGRvd25sb2FkIG1lZGlhIGhlcmUgdG8gbWFrZSBzdXJlIHRoZSB0YXNrcyBhcmUgb3JkZXJlZCBhZnRlciB0aGUgcmVjb3Jkc1xuICAgIHRoaXMuc3luY2hyb25pemVyLmFkZFRhc2sobmV3IERvd25sb2FkUGhvdG9zKHRoaXMuc3luY2hyb25pemVyLnRhc2tQYXJhbXMpKTtcbiAgICB0aGlzLnN5bmNocm9uaXplci5hZGRUYXNrKG5ldyBEb3dubG9hZFZpZGVvcyh0aGlzLnN5bmNocm9uaXplci50YXNrUGFyYW1zKSk7XG4gICAgdGhpcy5zeW5jaHJvbml6ZXIuYWRkVGFzayhuZXcgRG93bmxvYWRBdWRpbyh0aGlzLnN5bmNocm9uaXplci50YXNrUGFyYW1zKSk7XG4gICAgdGhpcy5zeW5jaHJvbml6ZXIuYWRkVGFzayhuZXcgRG93bmxvYWRTaWduYXR1cmVzKHRoaXMuc3luY2hyb25pemVyLnRhc2tQYXJhbXMpKTtcbiAgfVxuXG4gIGdldCBpbmNsdWRlZEZvcm1zKCkge1xuICAgIGlmIChhcHAuYXJncy5mb3JtKSB7XG4gICAgICByZXR1cm4gQXJyYXkuaXNBcnJheShhcHAuYXJncy5mb3JtKSA/IGFwcC5hcmdzLmZvcm0gOiBbIGFwcC5hcmdzLmZvcm0gXTtcbiAgICB9XG5cbiAgICByZXR1cm4gbnVsbDtcbiAgfVxufVxuIl19
