@@ -16,13 +16,7 @@
     "watch": "concurrently 'yarn watch:js' 'yarn watch:assets'",
     "clean": "rm -rf dist",
     "pack": "build --dir",
-    "dist": "build",
-    "dist:win:nsis": "build --windows nsis --x64 --ia32 --publish always",
-    "dist:win:portable": "build --windows portable --x64 --ia32 --publish always",
-    "dist:mac": "build --mac --publish always",
-    "dist:linux": "build --linux --x64 --publish always",
-    "dist:travis": "build --linux --mac --publish always",
-    "mac": "build --mac dir"
+    "dist": "build"
   },
   "author": "Zac McCormick <zac.mccormick@gmail.com> (http://github.com/zhm)",
   "license": "BSD-3-Clause",
@@ -33,134 +27,14 @@
   "eslintConfig": {
     "extends": "fulcrum"
   },
-  "build": {
-    "appId": "com.spatialnetworks.fulcrum",
-    "productName": "Fulcrum",
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-    "npmSkipBuildFromSource": true,
-    "files": [
-      "app/*",
-      "app/**/*",
-      "node_modules",
-      "!**/*.{o,hprof,orig,pyc,pyo,rbc,lib,pdb,obj,map,tlog,o.d,a,d.ts,m4,vc,ts,LICENSE,license,md,markdown}",
-      "!node_modules/minisqlite/deps/sqlite3.c",
-      "!node_modules/nodegit/build/Release/openssl.a",
-      "!node_modules/nodegit/build/Release/git2.a",
-      "!node_modules/nodegit/build/Release/ssh2.a",
-      "!node_modules/nodegit/vendor/**/*",
-      "!node_modules/nodegit/src/**/*",
-      "!node_modules/nodegit/include/**/*",
-      "!node_modules/minisqlite/Microsoft",
-      "!node_modules/caniuse-db/fulldata-json/data-2.0.json",
-      "!node_modules/caniuse-db/fulldata-json/data-1.0.json",
-      "!node_modules/caniuse-db/region-usage-json/*.json",
-      "!node_modules/caniuse-db/features-json/*.json",
-      "!node_modules/caniuse-db/data.json",
-      "!node_modules/minisqlite/deps/sqlite3.h",
-      "!node_modules/minisqlite/deps/configure"
-    ],
-    "extraResources": [
-      {
-        "from": "resources/yarn/yarn.asar",
-        "to": "yarn.asar"
-      }
-    ],
-    "extraFiles": [
-      {
-        "from": "resources/spatialite/${os}/${arch}",
-        "to": ".",
-        "filter": [
-          "*.dll"
-        ]
-      },
-      {
-        "from": "resources/spatialite/${os}/${arch}",
-        "to": ".",
-        "filter": [
-          "*.exe"
-        ]
-      },
-      {
-        "from": "resources/spatialite/${os}/${arch}",
-        "to": "resources",
-        "filter": [
-          "*.dylib"
-        ]
-      },
-      {
-        "from": "resources/spatialite/${os}/${arch}",
-        "to": ".",
-        "filter": [
-          "*.so"
-        ]
-      },
-      {
-        "from": "resources/scripts",
-        "to": "scripts",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "resources/default-plugin",
-        "to": "default-plugin",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ]
-    },
-    "mac": {},
-    "dmg": {
-      "contents": [
-        {
-          "x": 110,
-          "y": 150
-        },
-        {
-          "x": 420,
-          "y": 150,
-          "type": "link",
-          "path": "/Applications"
-        }
-      ]
-    },
-    "linux": {
-      "executableName": "fulcrum",
-      "target": [
-        "deb",
-        "rpm",
-        "tar.gz"
-      ]
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "fulcrumapp",
-        "repo": "fulcrum-desktop"
-      }
-    ]
-  },
   "devDependencies": {
-    "babel-cli": "^6.24.1",
-    "babel-core": "^6.24.1",
-    "babel-eslint": "^7.2.3",
-    "babel-preset-env": "^1.4.0",
-    "babel-preset-es2015": "^6.24.1",
-    "babel-preset-es2015-node5": "^1.2.0",
-    "babel-preset-stage-1": "^6.24.1",
-    "babel-register": "^6.24.1",
+    "@babel/cli": "^7.14.8",
+    "@babel/core": "^7.14.8",
+    "@babel/preset-env": "^7.14.8",
+    "@babel/register": "^7.14.5",
     "chai": "^3.5.0",
     "concurrently": "^3.4.0",
     "cpx": "^1.5.0",
-    "electron": "^1.6.6",
-    "electron-builder": "^17.1.1",
-    "electron-rebuild": "^1.1.3",
     "eslint": "^3.17.1",
     "eslint-config-fulcrum": "^1.5.4",
     "eslint-plugin-react": "^6.10.3",
@@ -177,8 +51,6 @@
     "csv-string": "^2.3.0",
     "delimit-stream": "^0.1.0",
     "ejs": "^2.4.1",
-    "electron-log": "^2.2.3",
-    "electron-updater": "^1.14.2",
     "exif": "^0.6.0",
     "filesize": "^3.3.0",
     "fulcrum-core": "^0.10.13",
@@ -187,13 +59,12 @@
     "glob": "^7.1.1",
     "inquirer": "^1.0.2",
     "lodash": "^4.11.1",
-    "minidb": "^0.12.11",
+    "minidb": "^0.15.1",
     "mixmatch": "0.0.2",
     "mkdirp": "^0.5.1",
     "moment": "^2.23.0",
     "mv": "^2.1.1",
     "node-uuid": "^1.4.7",
-    "nodegit": "^0.18.3",
     "pg": "^6.1.5",
     "pg-format": "^1.0.4",
     "progress": "^1.1.8",
@@ -201,7 +72,6 @@
     "rimraf": "^2.5.2",
     "sanitize-filename": "^1.5.3",
     "source-map-support": "^0.4.14",
-    "sqldiff": "^0.0.27",
     "tempy": "^0.1.0",
     "through2": "^2.0.3",
     "uuid": "^2.0.2",

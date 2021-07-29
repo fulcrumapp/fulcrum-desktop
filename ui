@@ -1,3 +1,0 @@
-export DEVELOPMENT=1
-
-./node_modules/.bin/electron app

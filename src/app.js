@@ -9,7 +9,7 @@ import Environment from './environment';
 import Account from './models/account';
 import LocalDatabaseDataSource from './local-database-data-source';
 import { DataSource } from 'fulcrum-core';
-import paths from '../application-paths';
+import paths from './application-paths';
 import pluginLogger from './plugin-logger';
 import Logger from './logger';
 
@@ -137,9 +137,9 @@ class App {
   async initialize() {
     this._db = await database({file: this.databaseFilePath});
 
-    if (!this.args.safe) {
-      await this.initializePlugins();
-    }
+    // if (!this.args.safe) {
+    //   await this.initializePlugins();
+    // }
   }
 
   async dispose() {
@@ -154,36 +154,36 @@ class App {
     }
   }
 
-  async initializePlugins() {
-    const pluginPaths = glob.sync(path.join(this.pluginPath, '*'));
+  // async initializePlugins() {
+  //   const pluginPaths = glob.sync(path.join(this.pluginPath, '*'));
 
-    for (const pluginPath of pluginPaths) {
-      const fullPath = path.resolve(pluginPath);
+  //   for (const pluginPath of pluginPaths) {
+  //     const fullPath = path.resolve(pluginPath);
 
-      const logger = pluginLogger(pluginPath);
+  //     const logger = pluginLogger(pluginPath);
 
-      try {
-        const pluginModule = require(fullPath);
+  //     try {
+  //       const pluginModule = require(fullPath);
 
-        const PluginClass = pluginModule.default || pluginModule;
+  //       const PluginClass = pluginModule.default || pluginModule;
 
-        const plugin = new PluginClass();
+  //       const plugin = new PluginClass();
 
-        const nameParts = fullPath.split(path.sep);
-        const name = nameParts[nameParts.length - 1].replace(/^fulcrum-desktop-/, '');
+  //       const nameParts = fullPath.split(path.sep);
+  //       const name = nameParts[nameParts.length - 1].replace(/^fulcrum-desktop-/, '');
 
-        this._pluginsByName[name] = plugin;
-        this._plugins.push(plugin);
+  //       this._pluginsByName[name] = plugin;
+  //       this._plugins.push(plugin);
 
-        if (this.args.debug) {
-          logger.error('Loading plugin', fullPath);
-        }
-      } catch (ex) {
-        logger.error('Failed to load plugin', ex);
-        logger.error('This is most likely an error in the plugin.');
-      }
-    }
-  }
+  //       if (this.args.debug) {
+  //         logger.error('Loading plugin', fullPath);
+  //       }
+  //     } catch (ex) {
+  //       logger.error('Failed to load plugin', ex);
+  //       logger.error('This is most likely an error in the plugin.');
+  //     }
+  //   }
+  // }
 
   async activatePlugins() {
     for (const plugin of this._plugins) {

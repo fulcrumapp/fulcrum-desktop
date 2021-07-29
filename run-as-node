@@ -1,3 +1,0 @@
-export DEVELOPMENT=1
-
-node --max-old-space-size=16384 resources/scripts/fulcrum.js "$@"

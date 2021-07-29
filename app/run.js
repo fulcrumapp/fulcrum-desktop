@@ -1,0 +1,6 @@
+"use strict";
+
+require('@babel/register')();
+
+require('./main/commands/cli');
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbIi4uL3NyYy9ydW4uanMiXSwibmFtZXMiOlsicmVxdWlyZSJdLCJtYXBwaW5ncyI6Ijs7QUFBQUEsT0FBTyxDQUFDLGlCQUFELENBQVA7O0FBQ0FBLE9BQU8sQ0FBQyxxQkFBRCxDQUFQIiwic291cmNlc0NvbnRlbnQiOlsicmVxdWlyZSgnQGJhYmVsL3JlZ2lzdGVyJykoKTtcbnJlcXVpcmUoJy4vbWFpbi9jb21tYW5kcy9jbGknKTsiXX0=

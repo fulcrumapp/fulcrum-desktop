@@ -1,6 +1,6 @@
 import repl from 'repl';
 import fs from 'fs';
-import pkg from '../../version';
+import pkg from '../version';
 
 export default class {
   async task(cli) {

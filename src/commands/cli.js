@@ -6,16 +6,11 @@ import LocalDatabaseDataSource from '../local-database-data-source';
 import app from '../app';
 
 import Setup from './setup';
-import InstallPlugin from './install-plugin';
-import CreatePlugin from './create-plugin';
-import UpdatePlugins from './update-plugins';
-import BuildPlugins from './build-plugins';
-import WatchPlugins from './watch-plugins';
 import Sync from './sync';
 import Query from './query';
 import Reset from './reset';
 import Console from './console';
-import fulcrumPackage from '../../version';
+import fulcrumPackage from '../version';
 
 import { Database } from 'minidb';
 
@@ -27,11 +22,6 @@ const COMMANDS = [
   Setup,
   Sync,
   Reset,
-  InstallPlugin,
-  CreatePlugin,
-  UpdatePlugins,
-  BuildPlugins,
-  WatchPlugins,
   Query,
   Console
 ];

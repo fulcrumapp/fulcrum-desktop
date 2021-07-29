@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 require('./main');
-//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbIi4uL3NyYy9pbmRleC5qcyJdLCJuYW1lcyI6WyJyZXF1aXJlIl0sIm1hcHBpbmdzIjoiOztBQUFBQSxRQUFRLFFBQVIiLCJmaWxlIjoiaW5kZXguanMiLCJzb3VyY2VzQ29udGVudCI6WyJyZXF1aXJlKCcuL21haW4nKTtcbiJdfQ==
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbIi4uL3NyYy9pbmRleC5qcyJdLCJuYW1lcyI6WyJyZXF1aXJlIl0sIm1hcHBpbmdzIjoiOztBQUFBQSxPQUFPLENBQUMsUUFBRCxDQUFQIiwic291cmNlc0NvbnRlbnQiOlsicmVxdWlyZSgnLi9tYWluJyk7XG4iXX0=

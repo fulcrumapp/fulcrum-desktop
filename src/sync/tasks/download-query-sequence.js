@@ -2,7 +2,7 @@ import DownloadResource from './download-resource';
 import Client from '../../api/client';
 import fs from 'fs';
 import tempy from 'tempy';
-import { parseFile } from '../../../jsonseq';
+import { parseFile } from '../../jsonseq';
 import { format } from 'util';
 
 const QUERY_PAGE_SIZE = 5000;
