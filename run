@@ -1,3 +1,4 @@
 export DEVELOPMENT=1
+export NODE_OPTIONS='--max-old-space-size=16384'
 
-node --max-old-space-size=16384 src/run.js "$@"
+yarn run ts-node src/run.ts "$@"
