@@ -1,8 +1,0 @@
-"use strict";
-
-require('@babel/register')();
-
-require('source-map-support').install();
-
-require('./commands/cli');
-//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbIi4uL3NyYy9ydW4uanMiXSwibmFtZXMiOlsicmVxdWlyZSIsImluc3RhbGwiXSwibWFwcGluZ3MiOiI7O0FBQUFBLE9BQU8sQ0FBQyxpQkFBRCxDQUFQOztBQUNBQSxPQUFPLENBQUMsb0JBQUQsQ0FBUCxDQUE4QkMsT0FBOUI7O0FBQ0FELE9BQU8sQ0FBQyxnQkFBRCxDQUFQIiwic291cmNlc0NvbnRlbnQiOlsicmVxdWlyZSgnQGJhYmVsL3JlZ2lzdGVyJykoKTtcbnJlcXVpcmUoJ3NvdXJjZS1tYXAtc3VwcG9ydCcpLmluc3RhbGwoKTtcbnJlcXVpcmUoJy4vY29tbWFuZHMvY2xpJyk7Il19

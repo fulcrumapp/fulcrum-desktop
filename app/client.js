@@ -1,4 +1,0 @@
-"use strict";
-
-require('./client/app');
-//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VzIjpbIi4uL3NyYy9jbGllbnQuanMiXSwibmFtZXMiOlsicmVxdWlyZSJdLCJtYXBwaW5ncyI6Ijs7QUFBQUEsT0FBTyxDQUFDLGNBQUQsQ0FBUCIsInNvdXJjZXNDb250ZW50IjpbInJlcXVpcmUoJy4vY2xpZW50L2FwcCcpO1xuIl19
