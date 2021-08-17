@@ -755,6 +755,14 @@
     "@babel/helper-create-regexp-features-plugin" "^7.14.5"
     "@babel/helper-plugin-utils" "^7.14.5"
 
+"@babel/polyfill@^7.12.1":
+  version "7.12.1"
+  resolved "https://registry.yarnpkg.com/@babel/polyfill/-/polyfill-7.12.1.tgz#1f2d6371d1261bbd961f3c5d5909150e12d0bd96"
+  integrity sha512-X0pi0V6gxLi6lFZpGmeNa4zxtwEmCs42isWLNjZZDE0Y8yVfgu0T2OAHlzBbdYlqbW/YXVvoBHpATEM+goCj8g==
+  dependencies:
+    core-js "^2.6.5"
+    regenerator-runtime "^0.13.4"
+
 "@babel/preset-env@^7.14.8":
   version "7.14.8"
   resolved "https://registry.yarnpkg.com/@babel/preset-env/-/preset-env-7.14.8.tgz#254942f5ca80ccabcfbb2a9f524c74bca574005b"
@@ -1218,23 +1226,6 @@ babel-plugin-polyfill-regenerator@^0.2.2:
   dependencies:
     "@babel/helper-define-polyfill-provider" "^0.2.2"
 
-babel-polyfill@^6.9.0:
-  version "6.26.0"
-  resolved "https://registry.yarnpkg.com/babel-polyfill/-/babel-polyfill-6.26.0.tgz#379937abc67d7895970adc621f284cd966cf2153"
-  integrity sha1-N5k3q8Z9eJWXCtxiHyhM2WbPIVM=
-  dependencies:
-    babel-runtime "^6.26.0"
-    core-js "^2.5.0"
-    regenerator-runtime "^0.10.5"
-
-babel-runtime@^6.26.0:
-  version "6.26.0"
-  resolved "https://registry.yarnpkg.com/babel-runtime/-/babel-runtime-6.26.0.tgz#965c7058668e82b55d7bfe04ff2337bc8b5647fe"
-  integrity sha1-llxwWGaOgrVde/4E/yM3vItWR/4=
-  dependencies:
-    core-js "^2.4.0"
-    regenerator-runtime "^0.11.0"
-
 balanced-match@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.0.tgz#89b4d199ab2bee49de164ea02b89ce462d71b767"
@@ -1632,7 +1623,7 @@ core-js-compat@^3.14.0, core-js-compat@^3.15.0:
     browserslist "^4.16.6"
     semver "7.0.0"
 
-core-js@^2.4.0, core-js@^2.5.0:
+core-js@^2.6.5:
   version "2.6.12"
   resolved "https://registry.yarnpkg.com/core-js/-/core-js-2.6.12.tgz#d9333dfa7b065e347cc5682219d6f690859cc2ec"
   integrity sha512-Kb2wC0fvsWfQrgk8HU5lW6U/Lcs8+9aaYcy4ZFc6DDlo4nZ7n70dEgE5rtR0oG6ufKDUnrwfWL1mXR5ljDatrQ==
@@ -2238,10 +2229,10 @@ fsevents@~2.3.2:
   resolved "https://registry.yarnpkg.com/fsevents/-/fsevents-2.3.2.tgz#8a526f78b8fdf4623b709e0b975c52c24c02fd1a"
   integrity sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==
 
-fulcrum-core@^0.13.2:
-  version "0.13.2"
-  resolved "https://registry.yarnpkg.com/fulcrum-core/-/fulcrum-core-0.13.2.tgz#f07182a49d0b75cf6bf5cbab31ea59fdbcf0cefd"
-  integrity sha512-I1+W09BN3bx1nnRZvvehP1mlNT+8QXN10CZFLofGuvWhvaRCTlHseuf/ftckNF5Dw/cD7jBeKs3SVYis7QcuHw==
+fulcrum-core@^0.13.3:
+  version "0.13.3"
+  resolved "https://registry.yarnpkg.com/fulcrum-core/-/fulcrum-core-0.13.3.tgz#11df2b3cb872ec4a7822771771851d7e8d8bbb42"
+  integrity sha512-6j2YZrvMTwFsJYun3+pjEJzJWtwT6SSgBKrRWKbCXjPtEMisocda8KXQ3GDkFSjsAwfdIq2lGp2xocEtZXcnqw==
   dependencies:
     async "^2.1.4"
     lodash.compact "^3.0.1"
@@ -2264,14 +2255,14 @@ fulcrum-query-sql@^0.3.2:
     moment-timezone "^0.5.11"
     pg-query-deparser "github:zhm/pg-query-deparser#master"
 
-fulcrum-schema@^2.1.0:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/fulcrum-schema/-/fulcrum-schema-2.1.0.tgz#5e42435c05dc7440658e9004555ab8cab779864b"
-  integrity sha512-Y188OeEpj6WYc7e0PXCvpwj12gVTB3fxQc/Tmc447BsFdNmUzvo5Fp3rlD+/pgiTWsyjNNSE03pljGvLthLblQ==
+fulcrum-schema@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/fulcrum-schema/-/fulcrum-schema-3.0.1.tgz#a855d8906661dbbfd347ab58572f412457652548"
+  integrity sha512-fuuhpERyYBVLi2eewOECZFsn2oEuLVFwjzTnQUrkyKMvgjXxu/6UPEljIEXWnDKvLpWZZYHHOaUo4bGUuvLQJQ==
   dependencies:
-    babel-polyfill "^6.9.0"
-    sqldiff "^0.1.0"
-    underscore "^1.8.3"
+    "@babel/polyfill" "^7.12.1"
+    lodash "^4.17.21"
+    sqldiff "^0.2.1"
 
 function-bind@^1.0.2, function-bind@^1.1.0:
   version "1.1.0"
@@ -3081,7 +3072,7 @@ lodash@^4.0.0, lodash@^4.11.1, lodash@^4.14.0, lodash@^4.3.0:
   version "4.17.4"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.4.tgz#78203a4d1c328ae1d86dca6460e369b57f4055ae"
 
-lodash@^4.13.1, lodash@^4.16.2, lodash@^4.17.14:
+lodash@^4.13.1, lodash@^4.16.2, lodash@^4.17.14, lodash@^4.17.21:
   version "4.17.21"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz#679591c564c3bffaae8454cf0b3df370c3d6911c"
   integrity sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==
@@ -3989,16 +3980,6 @@ regenerate@^1.4.0:
   resolved "https://registry.yarnpkg.com/regenerate/-/regenerate-1.4.2.tgz#b9346d8827e8f5a32f7ba29637d398b69014848a"
   integrity sha512-zrceR/XhGYU/d/opr2EKO7aRHUeiBI8qjtfHqADTwZd6Szfy16la6kqD0MIUs5z5hx6AaKa+PixpPrR289+I0A==
 
-regenerator-runtime@^0.10.5:
-  version "0.10.5"
-  resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.10.5.tgz#336c3efc1220adcedda2c9fab67b5a7955a33658"
-  integrity sha1-M2w+/BIgrc7dosn6tntaeVWjNlg=
-
-regenerator-runtime@^0.11.0:
-  version "0.11.1"
-  resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.11.1.tgz#be05ad7f9bf7d22e056f9726cee5017fbf19e2e9"
-  integrity sha512-MguG95oij0fC3QV3URf4V2SDYGJhJnJGqvIIgdECeODCT98wSWDAJ94SSuVpYQUoTcGUIL6L4yNB7j1DFFHSBg==
-
 regenerator-runtime@^0.13.4:
   version "0.13.9"
   resolved "https://registry.yarnpkg.com/regenerator-runtime/-/regenerator-runtime-0.13.9.tgz#8925742a98ffd90814988d7566ad30ca3b263b52"
@@ -4453,12 +4434,12 @@ sprintf-js@~1.0.2:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/sprintf-js/-/sprintf-js-1.0.3.tgz#04e6926f662895354f3dd015203633b857297e2c"
 
-sqldiff@^0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/sqldiff/-/sqldiff-0.1.0.tgz#72d13076ed6a0593a91eaf91c0050ec9f30c7b8a"
-  integrity sha512-BlSgPtJwU9hVWHOs6ecgRNylkdnajlaGTpPEKDlqhakKeefKXW9VhGATQv9fs5IKdgkSrVfzkZbY0Mw1vr/EDg==
+sqldiff@^0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/sqldiff/-/sqldiff-0.2.1.tgz#e25ef11a47a45146c073901176b4d9b66786a4fe"
+  integrity sha512-LBVaR0dttfWLF4QCQvQpS0LbaZMTyk1iVGUeHf95ACbCKQ1GDvRIY3BnZBgz2wc/ss/13MUqH6R+l/ujSohZoA==
   dependencies:
-    underscore "^1.7.0"
+    lodash "^4.17.21"
 
 sshpk@^1.7.0:
   version "1.15.2"
@@ -4736,7 +4717,7 @@ typescript@^4.3.5:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.5.tgz#4d1c37cc16e893973c45a06886b7113234f119f4"
   integrity sha512-DqQgihaQ9cUrskJo9kIyW/+g0Vxsk8cDtZ52a3NGh0YNTfpUSArXSohyUGnvbPazEPLu398C0UxmKSOrPumUzA==
 
-underscore@^1.7.0, underscore@^1.8.3:
+underscore@^1.13.1:
   version "1.13.1"
   resolved "https://registry.yarnpkg.com/underscore/-/underscore-1.13.1.tgz#0c1c6bd2df54b6b69f2314066d65b6cde6fcf9d1"
   integrity sha512-hzSoAVtJF+3ZtiFX0VgfFPHEDRm7Y/QPjGyNo4TVdnDTdft3tr8hEkD25a1jC+TjTuE7tkHGKkhwCgs9dgBB2g==

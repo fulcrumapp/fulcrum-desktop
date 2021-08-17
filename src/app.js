@@ -28,8 +28,9 @@ class App {
     this._api = api;
 
     const pathOverride = this.args.homePath;
+    const rootPath = this.args.osPaths ? paths.userData : path.resolve(path.join(__dirname, '..'));
 
-    this._appPath = pathOverride || paths.userData;
+    this._appPath = pathOverride || rootPath;
     this._homePath = pathOverride || path.join(os.homedir(), '.fulcrum');
     this._dataPath = this.args.dataPath || this.appPath('data');
     this._logPath = this.args.logPath || this.appPath('log');

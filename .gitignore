@@ -1,5 +1,6 @@
 node_modules/
 data/
+log/
 npm-debug.log
 reports/*
 form-pdfs/*

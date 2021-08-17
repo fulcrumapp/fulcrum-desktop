@@ -112,6 +112,11 @@ export default class RecordValues {
           }
         }
 
+        // TODO(zhm) fulcrum-core needs to be fixed to not emit a caption field for attachments
+        if (element.isAttachmentElement) {
+          delete columnValue[`f${ element.key }_captions`];
+        }
+
         // if array types are disabled, convert all the props to delimited values
         for (const key of Object.keys(columnValue)) {
           this.maybeAssignArray(columnValue, key, columnValue[key], options.disableArrays, options.disableComplexTypes);

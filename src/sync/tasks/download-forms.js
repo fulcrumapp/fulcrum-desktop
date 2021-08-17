@@ -1,12 +1,13 @@
-import Client from '../../api/client';
-import Form from '../../models/form';
+import sqldiff from 'sqldiff';
 import Schema from 'fulcrum-schema/dist/schema';
 import Metadata from 'fulcrum-schema/dist/metadata';
-import V2 from 'fulcrum-schema/dist/schemas/postgres-query-v2';
-import sqldiff from 'sqldiff';
+import FormSchemaV2 from 'fulcrum-schema/dist/schemas/v2';
+
+import Client from '../../api/client';
+import Form from '../../models/form';
 import DownloadResource from './download-resource';
 
-const {SchemaDiffer, Sqlite} = sqldiff;
+const { Postgres, SQLite, SchemaDiffer } = sqldiff;
 
 export default class DownloadForms extends DownloadResource {
   get resourceName() {
@@ -69,29 +70,49 @@ export default class DownloadForms extends DownloadResource {
     let newSchema = null;
 
     if (oldForm) {
-      oldSchema = new Schema(oldForm, V2, null);
+      oldSchema = new Schema(oldForm, FormSchemaV2, null);
     }
 
     if (newForm) {
-      newSchema = new Schema(newForm, V2, null);
+      newSchema = new Schema(newForm, FormSchemaV2, null);
     }
-
-    const tablePrefix = 'account_' + this.account.rowID + '_';
 
     const differ = new SchemaDiffer(oldSchema, newSchema);
 
-    const meta = new Metadata(differ, {tablePrefix, quote: '`', includeColumns: true});
+    const tablePrefix = 'account_' + this.account.rowID + '_';
 
-    const generator = new Sqlite(differ, {afterTransform: meta.build.bind(meta)});
-
-    generator.tablePrefix = tablePrefix;
-
-    const statements = generator.generate();
+    const statements = this.generateSQL(differ, {
+      tablePrefix,
+      dialect: 'sqlite',
+      version: 'v2',
+      includeMetadata: true
+    });
 
     for (const statement of statements) {
       await db.execute(statement);
     }
 
     return statements;
+  }
+
+  generateSQL(differ, { includeMetadata, dialect, tablePrefix, tableSchema }) {
+    const Generator = {
+      postgres: Postgres,
+      sqlite: SQLite
+    }[dialect];
+
+    const quote = {
+      postgres: '"',
+      sqlite: '`'
+    }[dialect];
+
+    const meta = new Metadata(differ, { quote, schema: tableSchema, includeColumns: true });
+
+    const generator = new Generator(differ, { afterTransform: includeMetadata ? meta.build.bind(meta) : null });
+
+    generator.tableSchema = tableSchema || '';
+    generator.tablePrefix = tablePrefix || '';
+
+    return generator.generate();
   }
 }
