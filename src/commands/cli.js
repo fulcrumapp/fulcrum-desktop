@@ -3,7 +3,7 @@ import yargs from 'yargs';
 import Account from '../models/account';
 import { DataSource } from 'fulcrum-core';
 import LocalDatabaseDataSource from '../local-database-data-source';
-import app from '../app';
+import App from '../app';
 
 import Setup from './setup';
 import Sync from './sync';
@@ -28,7 +28,7 @@ const COMMANDS = [
 
 export default class CLI {
   async setup() {
-    this.app = app;
+    this.app = App.instance;
 
     if (this.args.colors === false) {
       colors.enabled = false;
@@ -39,7 +39,7 @@ export default class CLI {
     }
 
     if (this.args.debug) {
-      fulcrum.logger.log(this.args);
+      this.app.logger.log(this.args);
     }
 
     await this.app.initialize();
@@ -97,18 +97,6 @@ export default class CLI {
     await completion;
   }
 
-  // addDefault = async (cli) => {
-  //   return cli.command({
-  //     command: 'yoyo',
-  //     desc: 'yyo',
-  //     builder: {},
-  //     handler: this.runDefaultCommand
-  //   });
-  // }
-
-  // runDefaultCommand = async () => {
-  // }
-
   get db() {
     return this.app.db;
   }
@@ -157,7 +145,7 @@ export default class CLI {
       await this.destroy();
     } catch (err) {
       process.exitCode = 1;
-      fulcrum.logger.error(err.stack);
+      this.app.logger.error(err.stack);
       await this.destroy();
     }
 
@@ -192,5 +180,5 @@ export default class CLI {
 new CLI().start().then(() => {
 }).catch((err) => {
   process.exitCode = 1;
-  fulcrum.logger.error(err);
+  App.instance.logger.error(err);
 });

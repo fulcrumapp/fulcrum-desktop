@@ -41,7 +41,7 @@ class App {
     mkdirp.sync(this._logPath);
     mkdirp.sync(this._pluginPath);
 
-    this._logger = new Logger(this._logPath);
+    this.logger = new Logger(this._logPath);
 
     this._environment = new Environment({app: this});
   }
@@ -219,4 +219,4 @@ global.__app__ = app;
 global.__api__ = api;
 global.fulcrum = app.environment;
 
-export default app;
+export default App;

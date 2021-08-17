@@ -1,4 +1,6 @@
-export default class {
+import Command from './command';
+
+export default class extends Command {
   async task(cli) {
     return cli.command({
       command: 'reset',
@@ -20,7 +22,7 @@ export default class {
     const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
     if (account == null) {
-      fulcrum.logger.error('Unable to find organization:', fulcrum.args.org);
+      this.app.logger.error('Unable to find organization:', fulcrum.args.org);
       return;
     }
 

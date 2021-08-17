@@ -4,7 +4,7 @@ import DownloadPhotos from './download-photos';
 import DownloadVideos from './download-videos';
 import DownloadAudio from './download-audio';
 import DownloadSignatures from './download-signatures';
-import app from '../../app';
+import App from '../../app';
 
 export default class DownloadAllRecords extends Task {
   async run({dataSource}) {
@@ -32,8 +32,8 @@ export default class DownloadAllRecords extends Task {
   }
 
   get includedForms() {
-    if (app.args.form) {
-      return Array.isArray(app.args.form) ? app.args.form : [ app.args.form ];
+    if (App.instance.args.form) {
+      return Array.isArray(App.instance.args.form) ? App.instance.args.form : [ App.instance.args.form ];
     }
 
     return null;

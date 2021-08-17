@@ -1,14 +1,14 @@
 import ProgressBar from 'progress';
 import {format} from 'util';
-import app from '../../app';
+import App from '../../app';
 
 export default class Task {
   constructor({synchronizer, syncState}) {
     this._synchronizer = synchronizer;
     this._syncState = syncState;
 
-    this._isSimpleShell = app.args.simpleOutput || process.platform === 'win32';
-    this._noProgress = app.args.progress === false || !process.stdout.isTTY;
+    this._isSimpleShell = App.instance.args.simpleOutput || process.platform === 'win32';
+    this._noProgress = App.instance.args.progress === false || !process.stdout.isTTY;
   }
 
   get synchronizer() {
@@ -70,7 +70,7 @@ export default class Task {
   }
 
   trigger(name, args) {
-    return app.emit(name, {account: this.account, ...args});
+    return App.instance.emit(name, {account: this.account, ...args});
   }
 
   get downloading() {

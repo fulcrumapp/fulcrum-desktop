@@ -1,6 +1,7 @@
 import CSV from 'csv-string';
+import Command from './command';
 
-export default class {
+export default class extends Command {
   async task(cli) {
     return cli.command({
       command: 'query',

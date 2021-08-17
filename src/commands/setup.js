@@ -2,6 +2,7 @@ import 'colors';
 import inquirer from 'inquirer';
 import Account from '../models/account';
 import Client from '../api/client';
+import Command from './command';
 
 function prompt(questions) {
   return inquirer.prompt(questions);
@@ -26,7 +27,8 @@ const againQuestion = {
   'default': true
 };
 
-export default class {
+
+export default class extends Command {
   async task(cli) {
     return cli.command({
       command: 'setup',

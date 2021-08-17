@@ -6,7 +6,7 @@ import DownloadProjects from './tasks/download-projects';
 import DownloadForms from './tasks/download-forms';
 import DownloadChangesets from './tasks/download-changesets';
 import DownloadAllRecords from './tasks/download-all-records';
-import app from '../app';
+import App from '../app';
 import exec from '../utils/exec';
 
 import Client from '../api/client';
@@ -52,7 +52,7 @@ export default class Synchronizer {
 
     await dataSource.source.load(account.db);
 
-    await app.emit('sync:start', {account, tasks: this._tasks});
+    await App.instance.emit('sync:start', {account, tasks: this._tasks});
 
     do {
       const task = this.popTask();
@@ -60,10 +60,10 @@ export default class Synchronizer {
       await task.execute({account, dataSource});
     } while (this._tasks.length);
 
-    await app.emit('sync:finish', {account});
+    await App.instance.emit('sync:finish', {account});
 
-    if (app.args.afterSyncCommand) {
-      await exec(app.args.afterSyncCommand, this.afterSyncCommandOptions, 'after-sync');
+    if (App.instance.args.afterSyncCommand) {
+      await exec(App.instance.args.afterSyncCommand, this.afterSyncCommandOptions, 'after-sync');
     }
 
     fulcrum.logger.log('Synced'.green, humanizeDuration(new Date().getTime() - start));
@@ -72,7 +72,7 @@ export default class Synchronizer {
   get afterSyncCommandOptions() {
     const options = {
       changedRecordCount: this._recordCount,
-      args: app.args
+      args: App.instance.args
     };
 
     return {

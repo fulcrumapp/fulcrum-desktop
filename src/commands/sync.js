@@ -1,6 +1,7 @@
 import Synchronizer from '../sync/synchronizer';
+import Command from './command';
 
-export default class {
+export default class extends Command {
   async task(cli) {
     return cli.command({
       command: 'sync',
@@ -32,7 +33,7 @@ export default class {
     const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
     if (account == null) {
-      fulcrum.logger.error('Unable to find organization:', fulcrum.args.org);
+      this.app.logger.error('Unable to find organization:', fulcrum.args.org);
       return;
     }
 
@@ -54,7 +55,7 @@ export default class {
       try {
         await synchronizer.run(account, fulcrum.args.form, dataSource, {fullSync});
       } catch (ex) {
-        fulcrum.logger.error(ex);
+        this.app.logger.error(ex);
       }
 
       fullSync = false;

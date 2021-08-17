@@ -6,6 +6,8 @@
     "lib": ["esnext"],
     "module": "commonjs",
     "allowJs": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "noImplicitAny": false,
+    "declaration": true
   }
 }

@@ -27,7 +27,7 @@ export default class Environment {
   }
 
   get logger() {
-    return Environment.app._logger;
+    return Environment.app.logger;
   }
 
   on(name, func) {

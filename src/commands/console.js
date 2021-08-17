@@ -1,8 +1,9 @@
 import repl from 'repl';
 import fs from 'fs';
 import pkg from '../version';
+import Command from './command';
 
-export default class {
+export default class extends Command {
   async task(cli) {
     return cli.command({
       command: 'console',
