@@ -8,7 +8,7 @@ import Setup from './setup';
 import Sync from './sync';
 import Query from './query';
 import Reset from './reset';
-import Console from './console';
+//import Console from './console';
 import fulcrumPackage from '../version';
 
 import { Database } from 'minidb';
@@ -19,8 +19,8 @@ const COMMANDS = [
   Setup,
   Sync,
   Reset,
-  Query,
-  Console
+  Query
+  //Console
 ];
 
 export default class CLI {
