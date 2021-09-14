@@ -44,7 +44,6 @@
     "fulcrum-query-sql": "^0.3.2",
     "fulcrum-schema": "^3.0.1",
     "glob": "^7.1.1",
-    "improved-yarn-audit": "^2.3.3",
     "inquirer": "^8.1.2",
     "lodash": "^4.17.21",
     "minidb": "^0.15.1",
