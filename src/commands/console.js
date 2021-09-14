@@ -5,8 +5,9 @@ import Command from './command';
 
 export default class extends Command {
   async task(cli) {
+    const app = this.app;
     return cli.command({
-      command: 'console',
+      command: 'fulcrum console',
       desc: 'run the console',
       builder: {
         org: {
@@ -22,35 +23,32 @@ export default class extends Command {
           type: 'string'
         }
       },
-      handler: this.runCommand
-    });
-  }
+      async handler(){
+        await app.activatePlugins();
 
-  runCommand = async () => {
-    await this.app.activatePlugins();
+        const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
-    const account = await fulcrum.fetchAccount(fulcrum.args.org);
-    const app = this.app;
+        const code = fulcrum.args.file ? fs.readFileSync(fulcrum.args.file).toString() : fulcrum.args.code;
 
-    const code = fulcrum.args.file ? fs.readFileSync(fulcrum.args.file).toString() : fulcrum.args.code;
+        if (code) {
+          await eval(code);
+          return;
+        }
 
-    if (code) {
-      await eval(code);
-      return;
-    }
+        console.log('');
+        console.log('Fulcrum'.green, pkg.version.green, fulcrum.databaseFilePath);
+        console.log('');
 
-    console.log('');
-    console.log('Fulcrum'.green, pkg.version.green, fulcrum.databaseFilePath);
-    console.log('');
+        const server = repl.start({prompt: '> ', terminal: true});
 
-    const server = repl.start({prompt: '> ', terminal: true});
+        server.context.account = account;
+        server.context.app = app;
 
-    server.context.account = account;
-    server.context.app = this.app;
-
-    // the process quits immediately unless we wire up an exit event
-    await new Promise((resolve) => {
-      server.on('exit', resolve);
+        // the process quits immediately unless we wire up an exit event
+        await new Promise((resolve) => {
+          server.on('exit', resolve);
+        });
+      }
     });
   }
 }

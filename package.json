@@ -23,10 +23,10 @@
     "@babel/preset-env": "^7.14.8",
     "@babel/register": "^7.14.5",
     "chai": "^3.5.0",
-    "eslint": "^3.17.1",
+    "eslint": "^7.32.0",
     "eslint-config-fulcrum": "^1.5.4",
-    "eslint-plugin-react": "^6.10.3",
-    "mocha": "^2.4.5",
+    "eslint-plugin-react": "^7.25.1",
+    "mocha": "^9.1.1",
     "should": "^8.3.1"
   },
   "dependencies": {
@@ -44,18 +44,19 @@
     "fulcrum-query-sql": "^0.3.2",
     "fulcrum-schema": "^3.0.1",
     "glob": "^7.1.1",
-    "inquirer": "^1.0.2",
-    "lodash": "^4.11.1",
+    "improved-yarn-audit": "^2.3.3",
+    "inquirer": "^8.1.2",
+    "lodash": "^4.17.21",
     "minidb": "^0.15.1",
     "mixmatch": "0.0.2",
-    "mkdirp": "^0.5.1",
+    "mkdirp": "^1.0.4",
     "moment": "^2.23.0",
     "mv": "^2.1.1",
     "node-uuid": "^1.4.7",
     "pg": "^8.7.1",
     "pg-format": "^1.0.4",
     "progress": "^1.1.8",
-    "request": "^2.72.0",
+    "request": "^2.88.2",
     "rimraf": "^2.5.2",
     "sanitize-filename": "^1.5.3",
     "snake-case": "^3.0.4",
@@ -67,7 +68,7 @@
     "underscore": "^1.13.1",
     "uuid": "^2.0.2",
     "wellknown": "^0.5.0",
-    "yargs": "^7.1.0"
+    "yargs": "^17.1.1"
   },
   "keywords": [
     "fulcrum"

@@ -1,6 +1,5 @@
 import glob from 'glob';
 import path from 'path';
-import yargs from 'yargs';
 import mkdirp from 'mkdirp';
 import os from 'os';
 import database from './db/database';
@@ -13,6 +12,8 @@ import paths from './application-paths';
 import pluginLogger from './plugin-logger';
 import Logger from './logger';
 import Postgres from './plugins/postgres/plugin';
+
+const yargs = require('yargs')(process.argv.slice(2));
 
 let app = null;
 

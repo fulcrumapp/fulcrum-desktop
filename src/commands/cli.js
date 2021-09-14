@@ -1,5 +1,4 @@
 import colors from 'colors';
-import yargs from 'yargs';
 import Account from '../models/account';
 import { DataSource } from 'fulcrum-core';
 import LocalDatabaseDataSource from '../local-database-data-source';
@@ -13,8 +12,6 @@ import Console from './console';
 import fulcrumPackage from '../version';
 
 import { Database } from 'minidb';
-
-yargs.$0 = 'fulcrum';
 
 require('source-map-support').install();
 
@@ -52,17 +49,15 @@ export default class CLI {
   async run() {
     let cli = this.yargs.usage('Usage: fulcrum <cmd> [args]');
 
-    cli.$0 = 'fulcrum';
-
     // this is some hacks to coordinate the yargs handler function with this async function.
     // if yargs adds support for promises in the command handlers this can go away.
-    let promiseResolve = null;
+    /*let promiseResolve = null;
     let promiseReject = null;
 
     const completion = new Promise((resolve, reject) => {
       promiseResolve = resolve;
       promiseReject = reject;
-    });
+    });*/
 
     // cli = await this.addDefault(this.wrapAsync(cli, promiseResolve, promiseReject));
 
@@ -71,7 +66,7 @@ export default class CLI {
 
       command.app = this.app;
 
-      const commandCli = await command.task(this.wrapAsync(cli, promiseResolve, promiseReject));
+      const commandCli = await command.task(cli);
 
       if (commandCli) {
         cli = commandCli;
@@ -80,7 +75,7 @@ export default class CLI {
 
     for (const plugin of this.app._plugins) {
       if (plugin.task) {
-        const pluginCommand = await plugin.task(this.wrapAsync(cli, promiseResolve, promiseReject));
+        const pluginCommand = await plugin.task(cli);
 
         if (pluginCommand) {
           cli = pluginCommand;
@@ -88,13 +83,13 @@ export default class CLI {
       }
     }
 
-    this.argv =
-      cli.demandCommand()
+    this.argv = await cli.demandCommand()
          .version(fulcrumPackage.version)
+         .scriptName('')
          .help()
-         .argv;
+         .argv
 
-    await completion;
+    //await completion;
   }
 
   get db() {
@@ -154,7 +149,7 @@ export default class CLI {
   }
 
   // this hacks the yargs command handler to allow it to return a promise (async function)
-  wrapAsync = (obj, resolve, reject) => {
+  /*wrapAsync = (obj, resolve, reject) => {
     const __command = obj.command.bind(obj);
 
     obj.command = (...args) => {
@@ -174,7 +169,7 @@ export default class CLI {
     };
 
     return obj;
-  }
+  }*/
 }
 
 new CLI().start().then(() => {

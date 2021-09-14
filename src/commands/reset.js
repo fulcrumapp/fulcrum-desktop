@@ -2,8 +2,9 @@ import Command from './command';
 
 export default class extends Command {
   async task(cli) {
+    const app = this.app;
     return cli.command({
-      command: 'reset',
+      command: 'fulcrum reset',
       desc: 'reset an organization',
       builder: {
         org: {
@@ -12,20 +13,18 @@ export default class extends Command {
           type: 'string'
         }
       },
-      handler: this.runCommand
+      async handler (){
+        await app.activatePlugins();
+
+        const account = await fulcrum.fetchAccount(fulcrum.args.org);
+
+        if (account == null) {
+          app.logger.error('Unable to find organization:', fulcrum.args.org);
+          return;
+        }
+
+        await account.reset();
+      }
     });
-  }
-
-  runCommand = async () => {
-    await this.app.activatePlugins();
-
-    const account = await fulcrum.fetchAccount(fulcrum.args.org);
-
-    if (account == null) {
-      this.app.logger.error('Unable to find organization:', fulcrum.args.org);
-      return;
-    }
-
-    await account.reset();
   }
 }

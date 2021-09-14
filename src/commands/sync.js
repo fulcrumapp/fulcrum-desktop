@@ -1,10 +1,37 @@
 import Synchronizer from '../sync/synchronizer';
 import Command from './command';
 
+async function syncLoop(account, fullSync) {
+  const sync = true;
+
+  const dataSource = await fulcrum.createDataSource(account);
+
+  while (sync) {
+    const synchronizer = new Synchronizer();
+
+    try {
+      await synchronizer.run(account, fulcrum.args.form, dataSource, {fullSync});
+    } catch (ex) {
+      this.app.logger.error(ex);
+    }
+
+    fullSync = false;
+
+    if (!fulcrum.args.forever) {
+      break;
+    }
+
+    const interval = fulcrum.args.interval ? (+fulcrum.args.interval * 1000) : 15000;
+
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+}
+
 export default class extends Command {
   async task(cli) {
+    const app = this.app;
     return cli.command({
-      command: 'sync',
+      command: 'fulcrum sync',
       desc: 'sync an organization',
       builder: {
         org: {
@@ -23,50 +50,22 @@ export default class extends Command {
           describe: 'start a clean sync, all data will be deleted before starting'
         }
       },
-      handler: this.runCommand
+      async handler () {
+        await app.activatePlugins();
+
+        const account = await fulcrum.fetchAccount(fulcrum.args.org);
+
+        if (account == null) {
+          app.logger.error('Unable to find organization:', fulcrum.args.org);
+          return;
+        }
+
+        if (fulcrum.args.clean) {
+          await account.reset();
+        }
+
+        await syncLoop(account, fulcrum.args.full);
+      }
     });
-  }
-
-  runCommand = async () => {
-    await this.app.activatePlugins();
-
-    const account = await fulcrum.fetchAccount(fulcrum.args.org);
-
-    if (account == null) {
-      this.app.logger.error('Unable to find organization:', fulcrum.args.org);
-      return;
-    }
-
-    if (fulcrum.args.clean) {
-      await account.reset();
-    }
-
-    await this.syncLoop(account, fulcrum.args.full);
-  }
-
-  async syncLoop(account, fullSync) {
-    const sync = true;
-
-    const dataSource = await fulcrum.createDataSource(account);
-
-    while (sync) {
-      const synchronizer = new Synchronizer();
-
-      try {
-        await synchronizer.run(account, fulcrum.args.form, dataSource, {fullSync});
-      } catch (ex) {
-        this.app.logger.error(ex);
-      }
-
-      fullSync = false;
-
-      if (!fulcrum.args.forever) {
-        break;
-      }
-
-      const interval = fulcrum.args.interval ? (+fulcrum.args.interval * 1000) : 15000;
-
-      await new Promise((resolve) => setTimeout(resolve, interval));
-    }
   }
 }
