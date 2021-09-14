@@ -1,30 +1,21 @@
 import colors from 'colors';
-import yargs from 'yargs';
 import Account from '../models/account';
 import { DataSource } from 'fulcrum-core';
 import LocalDatabaseDataSource from '../local-database-data-source';
 import App from '../app';
-
-import Setup from './setup';
-import Sync from './sync';
-import Query from './query';
-import Reset from './reset';
-import Console from './console';
 import fulcrumPackage from '../version';
-
 import { Database } from 'minidb';
-
-yargs.$0 = 'fulcrum';
 
 require('source-map-support').install();
 
+/*let query, setup, sync, reset;
+
 const COMMANDS = [
-  Setup,
-  Sync,
-  Reset,
-  Query,
-  Console
-];
+  query = require('../cmds/query-module'),
+  setup = require('../cmds/setup-module'),
+  reset = require('../cmds/reset-module'),
+  sync = require('../cmds/sync-module')
+];*/
 
 export default class CLI {
   async setup() {
@@ -52,33 +43,29 @@ export default class CLI {
   async run() {
     let cli = this.yargs.usage('Usage: fulcrum <cmd> [args]');
 
-    cli.$0 = 'fulcrum';
-
+    //cli.$0 = 'fulcrum';
     // this is some hacks to coordinate the yargs handler function with this async function.
     // if yargs adds support for promises in the command handlers this can go away.
     let promiseResolve = null;
     let promiseReject = null;
 
-    const completion = new Promise((resolve, reject) => {
+    /*const completion = new Promise((resolve, reject) => {
       promiseResolve = resolve;
       promiseReject = reject;
-    });
+    });*/
 
     // cli = await this.addDefault(this.wrapAsync(cli, promiseResolve, promiseReject));
 
-    for (const CommandClass of COMMANDS) {
-      const command = new CommandClass();
+    /*for (const commandModule of COMMANDS) {
 
-      command.app = this.app;
+      commandModule.app = this.app;
 
-      const commandCli = await command.task(this.wrapAsync(cli, promiseResolve, promiseReject));
-
-      if (commandCli) {
-        cli = commandCli;
+      if (commandModule.command) {
+        cli.command(commandModule);
       }
-    }
+    }*/
 
-    for (const plugin of this.app._plugins) {
+    /*for (const plugin of this.app._plugins) {
       if (plugin.task) {
         const pluginCommand = await plugin.task(this.wrapAsync(cli, promiseResolve, promiseReject));
 
@@ -86,15 +73,16 @@ export default class CLI {
           cli = pluginCommand;
         }
       }
-    }
+    }*/
 
-    this.argv =
-      cli.demandCommand()
-         .version(fulcrumPackage.version)
-         .help()
-         .argv;
+    this.argv = await cli.commandDir('cmds')
+        .demandCommand()
+        .version(fulcrumPackage.version)
+        .scriptName('')
+        .help()
+        .argv
 
-    await completion;
+    //await completion;
   }
 
   get db() {

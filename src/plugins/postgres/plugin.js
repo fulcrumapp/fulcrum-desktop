@@ -18,6 +18,9 @@ import version007 from './version-007.sql';
 
 const MAX_IDENTIFIER_LENGTH = 63;
 
+
+let log, warn, error, tableNames, pgdb, pool, dataSchema, disableArrays, useAccountPrefix, disableComplexTypes, pgCustomModule, recordValueOptions;
+
 const POSTGRES_CONFIG = {
   database: 'fulcrumapp',
   host: 'localhost',
@@ -39,12 +42,835 @@ const CURRENT_VERSION = 7;
 
 const DEFAULT_SCHEMA = 'public';
 
-let log, warn, error;
+function trimIdentifier(identifier) {
+  return identifier.substring(0, MAX_IDENTIFIER_LENGTH);
+}
+
+function escapeIdentifier (identifier) {
+  return identifier && pgdb.ident(trimIdentifier(identifier));
+}
+
+function useSyncEvents() {
+  return fulcrum.args.pgSyncEvents != null ? fulcrum.args.pgSyncEvents : true;
+}
+
+async function activate() {
+  const logger = fulcrum.logger.withContext('postgres');
+
+  log = logger.log;
+  warn = logger.warn;
+  error = logger.error;
+
+  const account = await fulcrum.fetchAccount(fulcrum.args.org);
+
+  const options = {
+    ...POSTGRES_CONFIG,
+    host: fulcrum.args.pgHost || POSTGRES_CONFIG.host,
+    port: fulcrum.args.pgPort || POSTGRES_CONFIG.port,
+    database: fulcrum.args.pgDatabase || POSTGRES_CONFIG.database,
+    user: fulcrum.args.pgUser || POSTGRES_CONFIG.user,
+    password: fulcrum.args.pgPassword || POSTGRES_CONFIG.user
+  };
+
+  if (fulcrum.args.pgUser) {
+    options.user = fulcrum.args.pgUser;
+  }
+
+  if (fulcrum.args.pgPassword) {
+    options.password = fulcrum.args.pgPassword;
+  }
+
+  if (fulcrum.args.pgCustomModule) {
+    const pgCustomModule = require(fulcrum.args.pgCustomModule);
+    pgCustomModule.api = api;
+    pgCustomModule.app = fulcrum;
+  }
+
+  if (fulcrum.args.pgArrays === false) {
+    const disableArrays = true;
+  }
+
+  if (fulcrum.args.pgSimpleTypes === true) {
+    const disableComplexTypes = true;
+  }
+
+  // if (fulcrum.args.pgPersistentTableNames === true) {
+    // this.persistentTableNames = true;
+  // }
+
+  const useAccountPrefix = (fulcrum.args.pgPrefix !== false);
+  const useUniqueViews = (fulcrum.args.pgUniqueViews !== false);
+
+  pool = new pg.Pool(options);
+
+  if (useSyncEvents) {
+    fulcrum.on('sync:start', onSyncStart);
+    fulcrum.on('sync:finish', onSyncFinish);
+    fulcrum.on('photo:save', onPhotoSave);
+    fulcrum.on('video:save', onVideoSave);
+    fulcrum.on('audio:save', onAudioSave);
+    fulcrum.on('signature:save', onSignatureSave);
+    fulcrum.on('changeset:save', onChangesetSave);
+    fulcrum.on('record:save', onRecordSave);
+    fulcrum.on('record:delete', onRecordDelete);
+
+    fulcrum.on('choice-list:save', onChoiceListSave);
+    fulcrum.on('choice-list:delete', onChoiceListSave);
+
+    fulcrum.on('form:save', onFormSave);
+    fulcrum.on('form:delete', onFormSave);
+
+    fulcrum.on('classification-set:save', onClassificationSetSave);
+    fulcrum.on('classification-set:delete', onClassificationSetSave);
+
+    fulcrum.on('role:save', onRoleSave);
+    fulcrum.on('role:delete', onRoleSave);
+
+    fulcrum.on('project:save', onProjectSave);
+    fulcrum.on('project:delete', onProjectSave);
+
+    fulcrum.on('membership:save', onMembershipSave);
+    fulcrum.on('membership:delete', onMembershipSave);
+  }
+
+  const viewSchema = fulcrum.args.pgSchemaViews || DEFAULT_SCHEMA;
+  const dataSchema = fulcrum.args.pgSchema || DEFAULT_SCHEMA;
+
+  // Fetch all the existing tables on startup. This allows us to special case the
+  // creation of new tables even when the form isn't version 1. If the table doesn't
+  // exist, we can pretend the form is version 1 so it creates all new tables instead
+  // of applying a schema diff.
+  const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ dataSchema }'`);
+
+  const tableNames = rows.map(o => o.name);
+
+  // make a client so we can use it to build SQL statements
+  const pgdb = new Postgres({});
+
+  setupOptions();
+
+  await maybeInitialize();
+}
+
+async function deactivate() {
+  if (pool) {
+    await pool.end();
+  }
+}
+
+function run (sql) {
+  sql = sql.replace(/\0/g, '');
+
+  if (fulcrum.args.debug) {
+    log(sql);
+  }
+  return new Promise((resolve, reject) => {
+    pool.query(sql, [], (err, res) => {
+      if (err) {
+        return reject(err);
+      }
+
+      return resolve(res.rows);
+    });
+  });
+}
+
+log = (...args) => {
+  // console.log(...args);
+}
+
+const tableName = (account, name) => {
+  if (useAccountPrefix) {
+    return 'account_' + account.rowID + '_' + name;
+  }
+
+  return name;
+}
+
+const onSyncStart = async ({account, tasks}) => {
+  await invokeBeforeFunction();
+}
+
+const onSyncFinish = async ({account}) => {
+  await cleanupFriendlyViews(account);
+  await invokeAfterFunction();
+}
+
+const onFormSave = async ({form, account, oldForm, newForm}) => {
+  await updateForm(form, account, oldForm, newForm);
+}
+
+const onFormDelete = async ({form, account}) => {
+  const oldForm = {
+    id: form._id,
+    row_id: form.rowID,
+    name: form._name,
+    elements: form._elementsJSON
+  };
+
+  await updateForm(form, account, oldForm, null);
+}
+
+const onRecordSave = async ({record, account}) => {
+  await updateRecord(record, account);
+}
+
+const onRecordDelete = async ({record}) => {
+  const statements = PostgresRecordValues.deleteForRecordStatements(pgdb, record, record.form, recordValueOptions);
+
+  await run(statements.map(o => o.sql).join('\n'));
+}
+
+const onPhotoSave = async ({photo, account}) => {
+  await updatePhoto(photo, account);
+}
+
+const onVideoSave = async ({video, account}) => {
+  await updateVideo(video, account);
+}
+
+const onAudioSave = async ({audio, account}) => {
+  await updateAudio(audio, account);
+}
+
+const onSignatureSave = async ({signature, account}) => {
+  await updateSignature(signature, account);
+}
+
+const onChangesetSave = async ({changeset, account}) => {
+  await updateChangeset(changeset, account);
+}
+
+const onChoiceListSave = async ({choiceList, account}) => {
+  await updateChoiceList(choiceList, account);
+}
+
+const onClassificationSetSave = async ({classificationSet, account}) => {
+  await updateClassificationSet(classificationSet, account);
+}
+
+const onProjectSave = async ({project, account}) => {
+  await updateProject(project, account);
+}
+
+const onRoleSave = async ({role, account}) => {
+  await updateRole(role, account);
+}
+
+const onMembershipSave = async ({membership, account}) => {
+  await updateMembership(membership, account);
+}
+
+async function updatePhoto(object, account) {
+  const values = SchemaMap.photo(object);
+
+  values.file = formatPhotoURL(values.access_key);
+
+  await updateObject(values, 'photos');
+}
+
+async function updateVideo(object, account) {
+  const values = SchemaMap.video(object);
+
+  values.file = formatVideoURL(values.access_key);
+
+  await updateObject(values, 'videos');
+}
+
+async function updateAudio(object, account) {
+  const values = SchemaMap.audio(object);
+
+  values.file = formatAudioURL(values.access_key);
+
+  await updateObject(values, 'audio');
+}
+
+async function updateSignature(object, account) {
+  const values = SchemaMap.signature(object);
+
+  values.file = formatSignatureURL(values.access_key);
+
+  await updateObject(values, 'signatures');
+}
+
+async function updateChangeset(object, account) {
+  await updateObject(SchemaMap.changeset(object), 'changesets');
+}
+
+async function updateProject(object, account) {
+  await updateObject(SchemaMap.project(object), 'projects');
+}
+
+async function updateMembership(object, account) {
+  await updateObject(SchemaMap.membership(object), 'memberships');
+}
+
+async function updateRole(object, account) {
+  await updateObject(SchemaMap.role(object), 'roles');
+}
+
+async function updateFormObject(object, account) {
+  await updateObject(SchemaMap.form(object), 'forms');
+}
+
+async function updateChoiceList(object, account) {
+  await updateObject(SchemaMap.choiceList(object), 'choice_lists');
+}
+
+async function updateClassificationSet(object, account) {
+  await updateObject(SchemaMap.classificationSet(object), 'classification_sets');
+}
+
+
+async function updateObject(values, table) {
+  const deleteStatement = pgdb.deleteStatement(`${ dataSchema }.system_${table}`, {row_resource_id: values.row_resource_id});
+  const insertStatement = pgdb.insertStatement(`${ dataSchema }.system_${table}`, values, {pk: 'id'});
+
+  const sql = [ deleteStatement.sql, insertStatement.sql ].join('\n');
+
+  try {
+    await run(sql);
+  } catch (ex) {
+    integrityWarning(ex);
+    throw ex;
+  }
+}
+
+const reloadTableList = async () => {
+  const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ dataSchema }'`);
+
+  const tableNames = rows.map(o => o.name);
+}
+
+const reloadViewList = async () => {
+  const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ this.viewSchema }'`);
+  this.viewNames = rows.map(o => o.name);
+}
+
+const baseMediaURL = () => {
+}
+
+const formatPhotoURL = (id) => {
+  return `${ baseMediaURL }/photos/${ id }.jpg`;
+}
+
+const formatVideoURL = (id) => {
+  return `${ baseMediaURL }/videos/${ id }.mp4`;
+}
+
+const formatAudioURL = (id) => {
+  return `${ baseMediaURL }/audio/${ id }.m4a`;
+}
+
+const formatSignatureURL = (id) => {
+  return `${ baseMediaURL }/signatures/${ id }.png`;
+}
+
+function integrityWarning(ex) {
+  warn(`
+-------------
+!! WARNING !!
+-------------
+
+PostgreSQL database integrity issue encountered. Common sources of postgres database issues are:
+
+* Reinstalling Fulcrum Desktop and using an old postgres database without recreating
+the postgres database.
+* Deleting the internal application database and using an existing postgres database
+* Manually modifying the postgres database
+* Form name and repeatable data name combinations that exceeed the postgres limit of 63
+characters. It's best to keep your form names within the limit. The "friendly view"
+feature of the plugin derives the object names from the form and repeatable names.
+* Creating multiple apps in Fulcrum with the same name. This is generally OK, except
+you will not be able to use the "friendly view" feature of the postgres plugin since
+the view names are derived from the form names.
+
+Note: When reinstalling Fulcrum Desktop or "starting over" you need to drop and re-create
+the postgres database. The names of database objects are tied directly to the database
+objects in the internal application database.
+
+---------------------------------------------------------------------
+Report issues at https://github.com/fulcrumapp/fulcrum-desktop/issues
+---------------------------------------------------------------------
+Message:
+${ ex.message }
+
+Stack:
+${ ex.stack }
+---------------------------------------------------------------------
+`.red
+  );
+}
+
+function setupOptions() {
+  baseMediaURL = fulcrum.args.pgMediaBaseUrl ? fulcrum.args.pgMediaBaseUrl : 'https://api.fulcrumapp.com/api/v2';
+
+  const recordValueOptions = {
+    schema: dataSchema,
+
+    disableArrays: disableArrays,
+
+    escapeIdentifier: escapeIdentifier,
+
+    // persistentTableNames: this.persistentTableNames,
+
+    accountPrefix: useAccountPrefix ? 'account_' + this.account.rowID : null,
+
+    calculatedFieldDateFormat: 'date',
+
+    disableComplexTypes: disableComplexTypes,
+
+    valuesTransformer: pgCustomModule && pgCustomModule.valuesTransformer,
+
+    mediaURLFormatter: (mediaValue) => {
+
+      return mediaValue.items.map((item) => {
+        if (mediaValue.element.isPhotoElement) {
+          return formatPhotoURL(item.mediaID);
+        } else if (mediaValue.element.isVideoElement) {
+          return formatVideoURL(item.mediaID);
+        } else if (mediaValue.element.isAudioElement) {
+          return formatAudioURL(item.mediaID);
+        }
+
+        return null;
+      });
+    },
+
+    mediaViewURLFormatter: (mediaValue) => {
+      const ids = mediaValue.items.map(o => o.mediaID);
+
+      if (mediaValue.element.isPhotoElement) {
+        return `${ baseMediaURL }/photos/view?photos=${ ids }`;
+      } else if (mediaValue.element.isVideoElement) {
+        return `${ baseMediaURL }/videos/view?videos=${ ids }`;
+      } else if (mediaValue.element.isAudioElement) {
+        return `${ baseMediaURL }/audio/view?audio=${ ids }`;
+      }
+
+      return null;
+    }
+  };
+
+  if (fulcrum.args.pgReportBaseUrl) {
+    recordValueOptions.reportURLFormatter = (feature) => {
+      return `${ fulcrum.args.pgReportBaseUrl }/reports/${ feature.id }.pdf`;
+    };
+  }
+}
+
+const updateRecord = async (record, account, skipTableCheck) => {
+  if (!skipTableCheck && !rootTableExists(record.form)) {
+    await rebuildForm(record.form, account, () => {});
+  }
+
+  if (pgCustomModule && pgCustomModule.shouldUpdateRecord && !pgCustomModule.shouldUpdateRecord({record, account})) {
+    return;
+  }
+
+  const statements = PostgresRecordValues.updateForRecordStatements(pgdb, record, recordValueOptions);
+
+  await run(statements.map(o => o.sql).join('\n'));
+
+  const systemValues = PostgresRecordValues.systemColumnValuesForFeature(record, null, record, {...recordValueOptions,
+                                                                                                disableComplexTypes: false});
+
+  await updateObject(SchemaMap.record(record, systemValues), 'records');
+}
+
+const rootTableExists = (form) => {
+  return tableNames.indexOf(PostgresRecordValues.tableNameWithForm(form, null, recordValueOptions)) !== -1;
+}
+
+const recreateFormTables = async (form, account) => {
+  try {
+    await updateForm(form, account, formVersion(form), null);
+  } catch (ex) {
+    if (fulcrum.args.debug) {
+      error(ex);
+    }
+  }
+
+  await updateForm(form, account, null, formVersion(form));
+}
+
+const updateForm = async (form, account, oldForm, newForm) => {
+  if (pgCustomModule && pgCustomModule.shouldUpdateForm && !pgCustomModule.shouldUpdateForm({form, account})) {
+    return;
+  }
+
+  try {
+    await updateFormObject(form, account);
+
+    if (!rootTableExists(form) && newForm != null) {
+      oldForm = null;
+    }
+
+    const options = {
+      disableArrays: disableArrays,
+      disableComplexTypes: disableComplexTypes,
+      userModule: pgCustomModule,
+      tableSchema: dataSchema,
+      calculatedFieldDateFormat: 'date',
+      metadata: true,
+      useResourceID: false,
+      accountPrefix: useAccountPrefix ? 'account_' + this.account.rowID : null
+    };
+
+    const {statements} = await PostgresSchema.generateSchemaStatements(account, oldForm, newForm, options);
+
+    await dropFriendlyView(form, null);
+
+    for (const repeatable of form.elementsOfType('Repeatable')) {
+      await dropFriendlyView(form, repeatable);
+    }
+
+    await run(['BEGIN TRANSACTION;',
+                    ...statements,
+                    'COMMIT TRANSACTION;'].join('\n'));
+
+    if (newForm) {
+      await createFriendlyView(form, null);
+
+      for (const repeatable of form.elementsOfType('Repeatable')) {
+        await createFriendlyView(form, repeatable);
+      }
+    }
+  } catch (ex) {
+      integrityWarning(ex);
+    throw ex;
+  }
+}
+
+async function dropFriendlyView(form, repeatable) {
+  const viewName = getFriendlyTableName(form, repeatable);
+
+  try {
+    await run(format('DROP VIEW IF EXISTS %s.%s CASCADE;', escapeIdentifier(this.viewSchema), escapeIdentifier(viewName)));
+  } catch (ex) {
+    integrityWarning(ex);
+  }
+}
+
+async function createFriendlyView(form, repeatable) {
+  const viewName = getFriendlyTableName(form, repeatable);
+
+  try {
+    await run(format('CREATE VIEW %s.%s AS SELECT * FROM %s;',
+                          escapeIdentifier(this.viewSchema),
+                          escapeIdentifier(viewName),
+                          PostgresRecordValues.tableNameWithFormAndSchema(form, repeatable, recordValueOptions, '_view_full')));
+  } catch (ex) {
+    // sometimes it doesn't exist
+    integrityWarning(ex);
+  }
+}
+
+function getFriendlyTableName(form, repeatable) {
+  let name = compact([form.name, repeatable && repeatable.dataName]).join(' - ')
+
+  if (this.useUniqueViews) {
+    const formID = this.persistentTableNames ? form.id : form.rowID;
+
+    const prefix = compact(['view', formID, repeatable && repeatable.key]).join(' - ');
+
+    name = [prefix, name].join(' - ');
+  }
+
+  return trimIdentifier(fulcrum.args.pgUnderscoreNames !== false ? snakeCase(name) : name);
+}
+
+async function invokeBeforeFunction() {
+  if (fulcrum.args.pgBeforeFunction) {
+    await run(format('SELECT %s();', fulcrum.args.pgBeforeFunction));
+  }
+  if (pgCustomModule && pgCustomModule.beforeSync) {
+    await pgCustomModule.beforeSync();
+  }
+}
+
+async function invokeAfterFunction() {
+  if (fulcrum.args.pgAfterFunction) {
+    await run(format('SELECT %s();', fulcrum.args.pgAfterFunction));
+  }
+  if (pgCustomModule && pgCustomModule.afterSync) {
+    await pgCustomModule.afterSync();
+  }
+}
+
+async function rebuildForm(form, account, progress) {
+  await recreateFormTables(form, account);
+  await reloadTableList();
+
+  let index = 0;
+
+  await form.findEachRecord({}, async (record) => {
+    record.form = form;
+
+    if (++index % 10 === 0) {
+      progress(index);
+    }
+
+    await updateRecord(record, account, true);
+  });
+
+  progress(index);
+}
+
+async function cleanupFriendlyViews(account) {
+  await reloadViewList();
+
+  const activeViewNames = [];
+
+  const forms = await account.findActiveForms({});
+
+  for (const form of forms) {
+    activeViewNames.push(getFriendlyTableName(form, null));
+
+    for (const repeatable of form.elementsOfType('Repeatable')) {
+      activeViewNames.push(getFriendlyTableName(form, repeatable));
+    }
+  }
+
+  const remove = difference(this.viewNames, activeViewNames);
+
+  for (const viewName of remove) {
+    if (viewName.indexOf('view_') === 0 || viewName.indexOf('view - ') === 0) {
+      try {
+        await run(format('DROP VIEW IF EXISTS %s.%s;', escapeIdentifier(this.viewSchema), escapeIdentifier(viewName)));
+      } catch (ex) {
+        integrityWarning(ex);
+      }
+    }
+  }
+}
+
+async function rebuildFriendlyViews(form, account) {
+  await dropFriendlyView(form, null);
+
+  for (const repeatable of form.elementsOfType('Repeatable')) {
+    await dropFriendlyView(form, repeatable);
+  }
+
+  await createFriendlyView(form, null);
+
+  for (const repeatable of form.elementsOfType('Repeatable')) {
+    await createFriendlyView(form, repeatable);
+  }
+}
+
+const formVersion = (form) => {
+  if (form == null) {
+    return null;
+  }
+
+  return {
+    id: form._id,
+    row_id: form.rowID,
+    name: form._name,
+    elements: form._elementsJSON
+  };
+}
+
+const updateStatus = (message) => {
+  if (process.stdout.isTTY) {
+    process.stdout.clearLine();
+    process.stdout.cursorTo(0);
+    process.stdout.write(message);
+  }
+}
+
+async function dropSystemTables() {
+  await run(prepareMigrationScript(templateDrop));
+}
+
+async function setupDatabase() {
+  await run(prepareMigrationScript(version001));
+}
+
+function prepareMigrationScript(sql) {
+  return sql.replace(/__SCHEMA__/g, dataSchema)
+            .replace(/__VIEW_SCHEMA__/g, this.viewSchema);
+}
+
+async function setupSystemTables(account) {
+  const progress = (name, index) => {
+    updateStatus(name.green + ' : ' + index.toString().red);
+  };
+
+  await account.findEachPhoto({}, async (photo, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Photos', index);
+    }
+
+    await updatePhoto(photo, account);
+  });
+
+  await account.findEachVideo({}, async (video, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Videos', index);
+    }
+
+    await updateVideo(video, account);
+  });
+
+  await account.findEachAudio({}, async (audio, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Audio', index);
+    }
+
+    await updateAudio(audio, account);
+  });
+
+  await account.findEachSignature({}, async (signature, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Signatures', index);
+    }
+
+    await updateSignature(signature, account);
+  });
+
+  await account.findEachChangeset({}, async (changeset, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Changesets', index);
+    }
+
+    await updateChangeset(changeset, account);
+  });
+
+  await account.findEachRole({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Roles', index);
+    }
+
+    await updateRole(object, account);
+  });
+
+  await account.findEachProject({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Projects', index);
+    }
+
+    await updateProject(object, account);
+  });
+
+  await account.findEachForm({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Forms', index);
+    }
+
+    await updateFormObject(object, account);
+  });
+
+  await account.findEachMembership({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Memberships', index);
+    }
+
+    await updateMembership(object, account);
+  });
+
+  await account.findEachChoiceList({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Choice Lists', index);
+    }
+
+    await updateChoiceList(object, account);
+  });
+
+  await account.findEachClassificationSet({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Classification Sets', index);
+    }
+
+    await updateClassificationSet(object, account);
+  });
+}
+
+async function maybeInitialize() {
+  const account = await fulcrum.fetchAccount(fulcrum.args.org);
+
+  if (tableNames.indexOf('migrations') === -1) {
+    log('Inititalizing database...');
+
+    await setupDatabase();
+  }
+
+  await maybeRunMigrations(account);
+}
+
+async function maybeRunMigrations(account) {
+  this.migrations = (await run(`SELECT name FROM ${ dataSchema }.migrations`)).map(o => o.name);
+
+  let populateRecords = false;
+
+  for (let count = 2; count <= CURRENT_VERSION; ++count) {
+    const version = padStart(count, 3, '0');
+
+    const needsMigration = this.migrations.indexOf(version) === -1 && MIGRATIONS[version];
+
+    if (needsMigration) {
+      await run(prepareMigrationScript(MIGRATIONS[version]));
+
+      if (version === '002') {
+        log('Populating system tables...');
+        await setupSystemTables(account);
+        populateRecords = true;
+      }
+      else if (version === '005') {
+        log('Migrating date calculation fields...');
+        await migrateCalculatedFieldsDateFormat(account);
+      }
+    }
+  }
+
+  if (populateRecords) {
+    await populateRecords(account);
+  }
+}
+
+async function populateRecords(account) {
+  const forms = await account.findActiveForms({});
+
+  let index = 0;
+
+  for (const form of forms) {
+    index = 0;
+
+    await form.findEachRecord({}, async (record) => {
+      record.form = form;
+
+      if (++index % 10 === 0) {
+        progress(form.name, index);
+      }
+
+      await updateRecord(record, account, false);
+    });
+  }
+}
+
+async function migrateCalculatedFieldsDateFormat(account) {
+  const forms = await account.findActiveForms({});
+
+  for (const form of forms) {
+    const fields = form.elementsOfType('CalculatedField').filter(element => element.display.isDate);
+
+    if (fields.length) {
+      log('Migrating date calculation fields in form...', form.name);
+
+      await rebuildForm(form, account, () => {});
+    }
+  }
+}
+
+const progress = (name, index) => {
+  updateStatus(name.green + ' : ' + index.toString().red);
+}
 
 export default class {
   async task(cli) {
     return cli.command({
-      command: 'postgres',
+      command: 'fulcrum postgres',
       desc: 'run the postgres sync for a specific organization',
       builder: {
         pgDatabase: {
@@ -173,880 +999,52 @@ export default class {
           default: false
         }
       },
-      handler: this.runCommand
-    });
-  }
+      async handler(){
+        await activate();
 
-  runCommand = async () => {
-    await this.activate();
-
-    if (fulcrum.args.pgDrop) {
-      await this.dropSystemTables();
-      return;
-    }
-
-    if (fulcrum.args.pgSetup) {
-      await this.setupDatabase();
-      return;
-    }
-
-    const account = await fulcrum.fetchAccount(fulcrum.args.org);
-
-    if (account) {
-      if (fulcrum.args.pgSystemTablesOnly) {
-        await this.setupSystemTables(account);
-        return;
-      }
-
-      await this.invokeBeforeFunction();
-
-      const forms = await account.findActiveForms({});
-
-      for (const form of forms) {
-        if (fulcrum.args.pgForm && form.id !== fulcrum.args.pgForm) {
-          continue;
+        if (fulcrum.args.pgDrop) {
+          await dropSystemTables();
+          return;
         }
 
-        if (fulcrum.args.pgRebuildViewsOnly) {
-          await this.rebuildFriendlyViews(form, account);
-        } else {
-          await this.rebuildForm(form, account, (index) => {
-            this.updateStatus(form.name.green + ' : ' + index.toString().red + ' records');
-          });
+        if (fulcrum.args.pgSetup) {
+          await setupDatabase();
+          return;
         }
 
-        log('');
-      }
-
-      await this.invokeAfterFunction();
-    } else {
-      error('Unable to find account', fulcrum.args.org);
-    }
-  }
-
-  trimIdentifier(identifier) {
-    return identifier.substring(0, MAX_IDENTIFIER_LENGTH);
-  }
-
-  escapeIdentifier = (identifier) => {
-    return identifier && this.pgdb.ident(this.trimIdentifier(identifier));
-  }
-
-  get useSyncEvents() {
-    return fulcrum.args.pgSyncEvents != null ? fulcrum.args.pgSyncEvents : true;
-  }
-
-  async activate() {
-    const logger = fulcrum.logger.withContext('postgres');
-
-    log = logger.log;
-    warn = logger.warn;
-    error = logger.error;
-
-    this.account = await fulcrum.fetchAccount(fulcrum.args.org);
-
-    const options = {
-      ...POSTGRES_CONFIG,
-      host: fulcrum.args.pgHost || POSTGRES_CONFIG.host,
-      port: fulcrum.args.pgPort || POSTGRES_CONFIG.port,
-      database: fulcrum.args.pgDatabase || POSTGRES_CONFIG.database,
-      user: fulcrum.args.pgUser || POSTGRES_CONFIG.user,
-      password: fulcrum.args.pgPassword || POSTGRES_CONFIG.user
-    };
-
-    if (fulcrum.args.pgUser) {
-      options.user = fulcrum.args.pgUser;
-    }
-
-    if (fulcrum.args.pgPassword) {
-      options.password = fulcrum.args.pgPassword;
-    }
-
-    if (fulcrum.args.pgCustomModule) {
-      this.pgCustomModule = require(fulcrum.args.pgCustomModule);
-      this.pgCustomModule.api = api;
-      this.pgCustomModule.app = fulcrum;
-    }
-
-    if (fulcrum.args.pgArrays === false) {
-      this.disableArrays = true;
-    }
-
-    if (fulcrum.args.pgSimpleTypes === true) {
-      this.disableComplexTypes = true;
-    }
-
-    // if (fulcrum.args.pgPersistentTableNames === true) {
-      // this.persistentTableNames = true;
-    // }
-
-    this.useAccountPrefix = (fulcrum.args.pgPrefix !== false);
-    this.useUniqueViews = (fulcrum.args.pgUniqueViews !== false);
-
-    this.pool = new pg.Pool(options);
-
-    if (this.useSyncEvents) {
-      fulcrum.on('sync:start', this.onSyncStart);
-      fulcrum.on('sync:finish', this.onSyncFinish);
-      fulcrum.on('photo:save', this.onPhotoSave);
-      fulcrum.on('video:save', this.onVideoSave);
-      fulcrum.on('audio:save', this.onAudioSave);
-      fulcrum.on('signature:save', this.onSignatureSave);
-      fulcrum.on('changeset:save', this.onChangesetSave);
-      fulcrum.on('record:save', this.onRecordSave);
-      fulcrum.on('record:delete', this.onRecordDelete);
-
-      fulcrum.on('choice-list:save', this.onChoiceListSave);
-      fulcrum.on('choice-list:delete', this.onChoiceListSave);
-
-      fulcrum.on('form:save', this.onFormSave);
-      fulcrum.on('form:delete', this.onFormSave);
-
-      fulcrum.on('classification-set:save', this.onClassificationSetSave);
-      fulcrum.on('classification-set:delete', this.onClassificationSetSave);
-
-      fulcrum.on('role:save', this.onRoleSave);
-      fulcrum.on('role:delete', this.onRoleSave);
-
-      fulcrum.on('project:save', this.onProjectSave);
-      fulcrum.on('project:delete', this.onProjectSave);
-
-      fulcrum.on('membership:save', this.onMembershipSave);
-      fulcrum.on('membership:delete', this.onMembershipSave);
-    }
-
-    this.viewSchema = fulcrum.args.pgSchemaViews || DEFAULT_SCHEMA;
-    this.dataSchema = fulcrum.args.pgSchema || DEFAULT_SCHEMA;
-
-    // Fetch all the existing tables on startup. This allows us to special case the
-    // creation of new tables even when the form isn't version 1. If the table doesn't
-    // exist, we can pretend the form is version 1 so it creates all new tables instead
-    // of applying a schema diff.
-    const rows = await this.run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ this.dataSchema }'`);
-
-    this.tableNames = rows.map(o => o.name);
-
-    // make a client so we can use it to build SQL statements
-    this.pgdb = new Postgres({});
-
-    this.setupOptions();
-
-    await this.maybeInitialize();
-  }
-
-  async deactivate() {
-    if (this.pool) {
-      await this.pool.end();
-    }
-  }
-
-  run = (sql) => {
-    sql = sql.replace(/\0/g, '');
-
-    if (fulcrum.args.debug) {
-      log(sql);
-    }
-
-    return new Promise((resolve, reject) => {
-      this.pool.query(sql, [], (err, res) => {
-        if (err) {
-          return reject(err);
-        }
-
-        return resolve(res.rows);
-      });
-    });
-  }
-
-  log = (...args) => {
-    // console.log(...args);
-  }
-
-  tableName = (account, name) => {
-    if (this.useAccountPrefix) {
-      return 'account_' + account.rowID + '_' + name;
-    }
-
-    return name;
-  }
-
-  onSyncStart = async ({account, tasks}) => {
-    await this.invokeBeforeFunction();
-  }
-
-  onSyncFinish = async ({account}) => {
-    await this.cleanupFriendlyViews(account);
-    await this.invokeAfterFunction();
-  }
-
-  onFormSave = async ({form, account, oldForm, newForm}) => {
-    await this.updateForm(form, account, oldForm, newForm);
-  }
-
-  onFormDelete = async ({form, account}) => {
-    const oldForm = {
-      id: form._id,
-      row_id: form.rowID,
-      name: form._name,
-      elements: form._elementsJSON
-    };
-
-    await this.updateForm(form, account, oldForm, null);
-  }
-
-  onRecordSave = async ({record, account}) => {
-    await this.updateRecord(record, account);
-  }
-
-  onRecordDelete = async ({record}) => {
-    const statements = PostgresRecordValues.deleteForRecordStatements(this.pgdb, record, record.form, this.recordValueOptions);
-
-    await this.run(statements.map(o => o.sql).join('\n'));
-  }
-
-  onPhotoSave = async ({photo, account}) => {
-    await this.updatePhoto(photo, account);
-  }
-
-  onVideoSave = async ({video, account}) => {
-    await this.updateVideo(video, account);
-  }
-
-  onAudioSave = async ({audio, account}) => {
-    await this.updateAudio(audio, account);
-  }
-
-  onSignatureSave = async ({signature, account}) => {
-    await this.updateSignature(signature, account);
-  }
-
-  onChangesetSave = async ({changeset, account}) => {
-    await this.updateChangeset(changeset, account);
-  }
-
-  onChoiceListSave = async ({choiceList, account}) => {
-    await this.updateChoiceList(choiceList, account);
-  }
-
-  onClassificationSetSave = async ({classificationSet, account}) => {
-    await this.updateClassificationSet(classificationSet, account);
-  }
-
-  onProjectSave = async ({project, account}) => {
-    await this.updateProject(project, account);
-  }
-
-  onRoleSave = async ({role, account}) => {
-    await this.updateRole(role, account);
-  }
-
-  onMembershipSave = async ({membership, account}) => {
-    await this.updateMembership(membership, account);
-  }
-
-  async updatePhoto(object, account) {
-    const values = SchemaMap.photo(object);
-
-    values.file = this.formatPhotoURL(values.access_key);
-
-    await this.updateObject(values, 'photos');
-  }
-
-  async updateVideo(object, account) {
-    const values = SchemaMap.video(object);
-
-    values.file = this.formatVideoURL(values.access_key);
-
-    await this.updateObject(values, 'videos');
-  }
-
-  async updateAudio(object, account) {
-    const values = SchemaMap.audio(object);
-
-    values.file = this.formatAudioURL(values.access_key);
-
-    await this.updateObject(values, 'audio');
-  }
-
-  async updateSignature(object, account) {
-    const values = SchemaMap.signature(object);
-
-    values.file = this.formatSignatureURL(values.access_key);
-
-    await this.updateObject(values, 'signatures');
-  }
-
-  async updateChangeset(object, account) {
-    await this.updateObject(SchemaMap.changeset(object), 'changesets');
-  }
-
-  async updateProject(object, account) {
-    await this.updateObject(SchemaMap.project(object), 'projects');
-  }
-
-  async updateMembership(object, account) {
-    await this.updateObject(SchemaMap.membership(object), 'memberships');
-  }
-
-  async updateRole(object, account) {
-    await this.updateObject(SchemaMap.role(object), 'roles');
-  }
-
-  async updateFormObject(object, account) {
-    await this.updateObject(SchemaMap.form(object), 'forms');
-  }
-
-  async updateChoiceList(object, account) {
-    await this.updateObject(SchemaMap.choiceList(object), 'choice_lists');
-  }
-
-  async updateClassificationSet(object, account) {
-    await this.updateObject(SchemaMap.classificationSet(object), 'classification_sets');
-  }
-
-
-  async updateObject(values, table) {
-    const deleteStatement = this.pgdb.deleteStatement(`${ this.dataSchema }.system_${table}`, {row_resource_id: values.row_resource_id});
-    const insertStatement = this.pgdb.insertStatement(`${ this.dataSchema }.system_${table}`, values, {pk: 'id'});
-
-    const sql = [ deleteStatement.sql, insertStatement.sql ].join('\n');
-
-    try {
-      await this.run(sql);
-    } catch (ex) {
-      this.integrityWarning(ex);
-      throw ex;
-    }
-  }
-
-  reloadTableList = async () => {
-    const rows = await this.run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ this.dataSchema }'`);
-
-    this.tableNames = rows.map(o => o.name);
-  }
-
-  reloadViewList = async () => {
-    const rows = await this.run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ this.viewSchema }'`);
-    this.viewNames = rows.map(o => o.name);
-  }
-
-  baseMediaURL = () => {
-  }
-
-  formatPhotoURL = (id) => {
-    return `${ this.baseMediaURL }/photos/${ id }.jpg`;
-  }
-
-  formatVideoURL = (id) => {
-    return `${ this.baseMediaURL }/videos/${ id }.mp4`;
-  }
-
-  formatAudioURL = (id) => {
-    return `${ this.baseMediaURL }/audio/${ id }.m4a`;
-  }
-
-  formatSignatureURL = (id) => {
-    return `${ this.baseMediaURL }/signatures/${ id }.png`;
-  }
-
-  integrityWarning(ex) {
-    warn(`
--------------
-!! WARNING !!
--------------
-
-PostgreSQL database integrity issue encountered. Common sources of postgres database issues are:
-
-* Reinstalling Fulcrum Desktop and using an old postgres database without recreating
-  the postgres database.
-* Deleting the internal application database and using an existing postgres database
-* Manually modifying the postgres database
-* Form name and repeatable data name combinations that exceeed the postgres limit of 63
-  characters. It's best to keep your form names within the limit. The "friendly view"
-  feature of the plugin derives the object names from the form and repeatable names.
-* Creating multiple apps in Fulcrum with the same name. This is generally OK, except
-  you will not be able to use the "friendly view" feature of the postgres plugin since
-  the view names are derived from the form names.
-
-Note: When reinstalling Fulcrum Desktop or "starting over" you need to drop and re-create
-the postgres database. The names of database objects are tied directly to the database
-objects in the internal application database.
-
----------------------------------------------------------------------
-Report issues at https://github.com/fulcrumapp/fulcrum-desktop/issues
----------------------------------------------------------------------
-Message:
-${ ex.message }
-
-Stack:
-${ ex.stack }
----------------------------------------------------------------------
-`.red
-    );
-  }
-
-  setupOptions() {
-    this.baseMediaURL = fulcrum.args.pgMediaBaseUrl ? fulcrum.args.pgMediaBaseUrl : 'https://api.fulcrumapp.com/api/v2';
-
-    this.recordValueOptions = {
-      schema: this.dataSchema,
-
-      disableArrays: this.disableArrays,
-
-      escapeIdentifier: this.escapeIdentifier,
-
-      // persistentTableNames: this.persistentTableNames,
-
-      accountPrefix: this.useAccountPrefix ? 'account_' + this.account.rowID : null,
-
-      calculatedFieldDateFormat: 'date',
-
-      disableComplexTypes: this.disableComplexTypes,
-
-      valuesTransformer: this.pgCustomModule && this.pgCustomModule.valuesTransformer,
-
-      mediaURLFormatter: (mediaValue) => {
-
-        return mediaValue.items.map((item) => {
-          if (mediaValue.element.isPhotoElement) {
-            return this.formatPhotoURL(item.mediaID);
-          } else if (mediaValue.element.isVideoElement) {
-            return this.formatVideoURL(item.mediaID);
-          } else if (mediaValue.element.isAudioElement) {
-            return this.formatAudioURL(item.mediaID);
+        const account = await fulcrum.fetchAccount(fulcrum.args.org);
+
+        if (account) {
+          if (fulcrum.args.pgSystemTablesOnly) {
+            await setupSystemTables(account);
+            return;
           }
 
-          return null;
-        });
-      },
+          await invokeBeforeFunction();
 
-      mediaViewURLFormatter: (mediaValue) => {
-        const ids = mediaValue.items.map(o => o.mediaID);
+          const forms = await account.findActiveForms({});
 
-        if (mediaValue.element.isPhotoElement) {
-          return `${ this.baseMediaURL }/photos/view?photos=${ ids }`;
-        } else if (mediaValue.element.isVideoElement) {
-          return `${ this.baseMediaURL }/videos/view?videos=${ ids }`;
-        } else if (mediaValue.element.isAudioElement) {
-          return `${ this.baseMediaURL }/audio/view?audio=${ ids }`;
-        }
+          for (const form of forms) {
+            if (fulcrum.args.pgForm && form.id !== fulcrum.args.pgForm) {
+              continue;
+            }
 
-        return null;
-      }
-    };
+            if (fulcrum.args.pgRebuildViewsOnly) {
+              await rebuildFriendlyViews(form, account);
+            } else {
+              await rebuildForm(form, account, (index) => {
+                updateStatus(form.name.green + ' : ' + index.toString().red + ' records');
+              });
+            }
 
-    if (fulcrum.args.pgReportBaseUrl) {
-      this.recordValueOptions.reportURLFormatter = (feature) => {
-        return `${ fulcrum.args.pgReportBaseUrl }/reports/${ feature.id }.pdf`;
-      };
-    }
-  }
+            log('');
+          }
 
-  updateRecord = async (record, account, skipTableCheck) => {
-    if (!skipTableCheck && !this.rootTableExists(record.form)) {
-      await this.rebuildForm(record.form, account, () => {});
-    }
-
-    if (this.pgCustomModule && this.pgCustomModule.shouldUpdateRecord && !this.pgCustomModule.shouldUpdateRecord({record, account})) {
-      return;
-    }
-
-    const statements = PostgresRecordValues.updateForRecordStatements(this.pgdb, record, this.recordValueOptions);
-
-    await this.run(statements.map(o => o.sql).join('\n'));
-
-    const systemValues = PostgresRecordValues.systemColumnValuesForFeature(record, null, record, {...this.recordValueOptions,
-                                                                                                  disableComplexTypes: false});
-
-    await this.updateObject(SchemaMap.record(record, systemValues), 'records');
-  }
-
-  rootTableExists = (form) => {
-    return this.tableNames.indexOf(PostgresRecordValues.tableNameWithForm(form, null, this.recordValueOptions)) !== -1;
-  }
-
-  recreateFormTables = async (form, account) => {
-    try {
-      await this.updateForm(form, account, this.formVersion(form), null);
-    } catch (ex) {
-      if (fulcrum.args.debug) {
-        error(ex);
-      }
-    }
-
-    await this.updateForm(form, account, null, this.formVersion(form));
-  }
-
-  updateForm = async (form, account, oldForm, newForm) => {
-    if (this.pgCustomModule && this.pgCustomModule.shouldUpdateForm && !this.pgCustomModule.shouldUpdateForm({form, account})) {
-      return;
-    }
-
-    try {
-      await this.updateFormObject(form, account);
-
-      if (!this.rootTableExists(form) && newForm != null) {
-        oldForm = null;
-      }
-
-      const options = {
-        disableArrays: this.disableArrays,
-        disableComplexTypes: this.disableComplexTypes,
-        userModule: this.pgCustomModule,
-        tableSchema: this.dataSchema,
-        calculatedFieldDateFormat: 'date',
-        metadata: true,
-        useResourceID: false,
-        accountPrefix: this.useAccountPrefix ? 'account_' + this.account.rowID : null
-      };
-
-      const {statements} = await PostgresSchema.generateSchemaStatements(account, oldForm, newForm, options);
-
-      await this.dropFriendlyView(form, null);
-
-      for (const repeatable of form.elementsOfType('Repeatable')) {
-        await this.dropFriendlyView(form, repeatable);
-      }
-
-      await this.run(['BEGIN TRANSACTION;',
-                      ...statements,
-                      'COMMIT TRANSACTION;'].join('\n'));
-
-      if (newForm) {
-        await this.createFriendlyView(form, null);
-
-        for (const repeatable of form.elementsOfType('Repeatable')) {
-          await this.createFriendlyView(form, repeatable);
+          await invokeAfterFunction();
+        } else {
+          error('Unable to find account', fulcrum.args.org);
         }
       }
-    } catch (ex) {
-      this.integrityWarning(ex);
-      throw ex;
-    }
-  }
-
-  async dropFriendlyView(form, repeatable) {
-    const viewName = this.getFriendlyTableName(form, repeatable);
-
-    try {
-      await this.run(format('DROP VIEW IF EXISTS %s.%s CASCADE;', this.escapeIdentifier(this.viewSchema), this.escapeIdentifier(viewName)));
-    } catch (ex) {
-      this.integrityWarning(ex);
-    }
-  }
-
-  async createFriendlyView(form, repeatable) {
-    const viewName = this.getFriendlyTableName(form, repeatable);
-
-    try {
-      await this.run(format('CREATE VIEW %s.%s AS SELECT * FROM %s;',
-                            this.escapeIdentifier(this.viewSchema),
-                            this.escapeIdentifier(viewName),
-                            PostgresRecordValues.tableNameWithFormAndSchema(form, repeatable, this.recordValueOptions, '_view_full')));
-    } catch (ex) {
-      // sometimes it doesn't exist
-      this.integrityWarning(ex);
-    }
-  }
-
-  getFriendlyTableName(form, repeatable) {
-    let name = compact([form.name, repeatable && repeatable.dataName]).join(' - ')
-
-    if (this.useUniqueViews) {
-      const formID = this.persistentTableNames ? form.id : form.rowID;
-
-      const prefix = compact(['view', formID, repeatable && repeatable.key]).join(' - ');
-
-      name = [prefix, name].join(' - ');
-    }
-
-    return this.trimIdentifier(fulcrum.args.pgUnderscoreNames !== false ? snakeCase(name) : name);
-  }
-
-  async invokeBeforeFunction() {
-    if (fulcrum.args.pgBeforeFunction) {
-      await this.run(format('SELECT %s();', fulcrum.args.pgBeforeFunction));
-    }
-    if (this.pgCustomModule && this.pgCustomModule.beforeSync) {
-      await this.pgCustomModule.beforeSync();
-    }
-  }
-
-  async invokeAfterFunction() {
-    if (fulcrum.args.pgAfterFunction) {
-      await this.run(format('SELECT %s();', fulcrum.args.pgAfterFunction));
-    }
-    if (this.pgCustomModule && this.pgCustomModule.afterSync) {
-      await this.pgCustomModule.afterSync();
-    }
-  }
-
-  async rebuildForm(form, account, progress) {
-    await this.recreateFormTables(form, account);
-    await this.reloadTableList();
-
-    let index = 0;
-
-    await form.findEachRecord({}, async (record) => {
-      record.form = form;
-
-      if (++index % 10 === 0) {
-        progress(index);
-      }
-
-      await this.updateRecord(record, account, true);
     });
-
-    progress(index);
-  }
-
-  async cleanupFriendlyViews(account) {
-    await this.reloadViewList();
-
-    const activeViewNames = [];
-
-    const forms = await account.findActiveForms({});
-
-    for (const form of forms) {
-      activeViewNames.push(this.getFriendlyTableName(form, null));
-
-      for (const repeatable of form.elementsOfType('Repeatable')) {
-        activeViewNames.push(this.getFriendlyTableName(form, repeatable));
-      }
-    }
-
-    const remove = difference(this.viewNames, activeViewNames);
-
-    for (const viewName of remove) {
-      if (viewName.indexOf('view_') === 0 || viewName.indexOf('view - ') === 0) {
-        try {
-          await this.run(format('DROP VIEW IF EXISTS %s.%s;', this.escapeIdentifier(this.viewSchema), this.escapeIdentifier(viewName)));
-        } catch (ex) {
-          this.integrityWarning(ex);
-        }
-      }
-    }
-  }
-
-  async rebuildFriendlyViews(form, account) {
-    await this.dropFriendlyView(form, null);
-
-    for (const repeatable of form.elementsOfType('Repeatable')) {
-      await this.dropFriendlyView(form, repeatable);
-    }
-
-    await this.createFriendlyView(form, null);
-
-    for (const repeatable of form.elementsOfType('Repeatable')) {
-      await this.createFriendlyView(form, repeatable);
-    }
-  }
-
-  formVersion = (form) => {
-    if (form == null) {
-      return null;
-    }
-
-    return {
-      id: form._id,
-      row_id: form.rowID,
-      name: form._name,
-      elements: form._elementsJSON
-    };
-  }
-
-  updateStatus = (message) => {
-    if (process.stdout.isTTY) {
-      process.stdout.clearLine();
-      process.stdout.cursorTo(0);
-      process.stdout.write(message);
-    }
-  }
-
-  async dropSystemTables() {
-    await this.run(this.prepareMigrationScript(templateDrop));
-  }
-
-  async setupDatabase() {
-    await this.run(this.prepareMigrationScript(version001));
-  }
-
-  prepareMigrationScript(sql) {
-    return sql.replace(/__SCHEMA__/g, this.dataSchema)
-              .replace(/__VIEW_SCHEMA__/g, this.viewSchema);
-  }
-
-  async setupSystemTables(account) {
-    const progress = (name, index) => {
-      this.updateStatus(name.green + ' : ' + index.toString().red);
-    };
-
-    await account.findEachPhoto({}, async (photo, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Photos', index);
-      }
-
-      await this.updatePhoto(photo, account);
-    });
-
-    await account.findEachVideo({}, async (video, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Videos', index);
-      }
-
-      await this.updateVideo(video, account);
-    });
-
-    await account.findEachAudio({}, async (audio, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Audio', index);
-      }
-
-      await this.updateAudio(audio, account);
-    });
-
-    await account.findEachSignature({}, async (signature, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Signatures', index);
-      }
-
-      await this.updateSignature(signature, account);
-    });
-
-    await account.findEachChangeset({}, async (changeset, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Changesets', index);
-      }
-
-      await this.updateChangeset(changeset, account);
-    });
-
-    await account.findEachRole({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Roles', index);
-      }
-
-      await this.updateRole(object, account);
-    });
-
-    await account.findEachProject({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Projects', index);
-      }
-
-      await this.updateProject(object, account);
-    });
-
-    await account.findEachForm({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Forms', index);
-      }
-
-      await this.updateFormObject(object, account);
-    });
-
-    await account.findEachMembership({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Memberships', index);
-      }
-
-      await this.updateMembership(object, account);
-    });
-
-    await account.findEachChoiceList({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Choice Lists', index);
-      }
-
-      await this.updateChoiceList(object, account);
-    });
-
-    await account.findEachClassificationSet({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Classification Sets', index);
-      }
-
-      await this.updateClassificationSet(object, account);
-    });
-  }
-
-  async maybeInitialize() {
-    const account = await fulcrum.fetchAccount(fulcrum.args.org);
-
-    if (this.tableNames.indexOf('migrations') === -1) {
-      log('Inititalizing database...');
-
-      await this.setupDatabase();
-    }
-
-    await this.maybeRunMigrations(account);
-  }
-
-  async maybeRunMigrations(account) {
-    this.migrations = (await this.run(`SELECT name FROM ${ this.dataSchema }.migrations`)).map(o => o.name);
-
-    let populateRecords = false;
-
-    for (let count = 2; count <= CURRENT_VERSION; ++count) {
-      const version = padStart(count, 3, '0');
-
-      const needsMigration = this.migrations.indexOf(version) === -1 && MIGRATIONS[version];
-
-      if (needsMigration) {
-        await this.run(this.prepareMigrationScript(MIGRATIONS[version]));
-
-        if (version === '002') {
-          log('Populating system tables...');
-          await this.setupSystemTables(account);
-          populateRecords = true;
-        }
-        else if (version === '005') {
-          log('Migrating date calculation fields...');
-          await this.migrateCalculatedFieldsDateFormat(account);
-        }
-      }
-    }
-
-    if (populateRecords) {
-      await this.populateRecords(account);
-    }
-  }
-
-  async populateRecords(account) {
-    const forms = await account.findActiveForms({});
-
-    let index = 0;
-
-    for (const form of forms) {
-      index = 0;
-
-      await form.findEachRecord({}, async (record) => {
-        record.form = form;
-
-        if (++index % 10 === 0) {
-          this.progress(form.name, index);
-        }
-
-        await this.updateRecord(record, account, false);
-      });
-    }
-  }
-
-  async migrateCalculatedFieldsDateFormat(account) {
-    const forms = await account.findActiveForms({});
-
-    for (const form of forms) {
-      const fields = form.elementsOfType('CalculatedField').filter(element => element.display.isDate);
-
-      if (fields.length) {
-        log('Migrating date calculation fields in form...', form.name);
-
-        await this.rebuildForm(form, account, () => {});
-      }
-    }
-  }
-
-  progress = (name, index) => {
-    this.updateStatus(name.green + ' : ' + index.toString().red);
   }
 }
