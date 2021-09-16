@@ -1,1 +1,1 @@
-import './commands/cli';
+import './cli';
