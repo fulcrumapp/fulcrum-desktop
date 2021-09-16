@@ -13,7 +13,7 @@ import pluginLogger from './plugin-logger';
 import Logger from './logger';
 import Postgres from './plugins/postgres/plugin';
 
-const yargs = require('yargs')(process.argv.slice(2));
+const yargs = require('yargs')(process.argv.slice(3));
 
 let app = null;
 
@@ -148,7 +148,7 @@ class App {
   async dispose() {
     for (const plugin of this._plugins) {
       if (plugin.deactivate) {
-        await plugin.deactivate();
+        await plugin.deactivate;
       }
     }
 
@@ -184,7 +184,7 @@ class App {
 
   async activatePlugins() {
     for (const plugin of this._plugins) {
-      await plugin.activate();
+      await plugin.activate;
     }
   }
 

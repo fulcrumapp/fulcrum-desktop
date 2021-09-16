@@ -19,7 +19,7 @@ import version007 from './version-007.sql';
 const MAX_IDENTIFIER_LENGTH = 63;
 
 
-let log, warn, error, tableNames, pgdb, pool, dataSchema, disableArrays, useAccountPrefix, disableComplexTypes, pgCustomModule, recordValueOptions;
+let log, warn, error, tableNames, viewNames, pgdb, pool, viewSchema, dataSchema, disableArrays, useAccountPrefix, useUniqueViews, disableComplexTypes, pgCustomModule, recordValueOptions, migrations, account;
 
 const POSTGRES_CONFIG = {
   database: 'fulcrumapp',
@@ -61,7 +61,7 @@ async function activate() {
   warn = logger.warn;
   error = logger.error;
 
-  const account = await fulcrum.fetchAccount(fulcrum.args.org);
+  account = await fulcrum.fetchAccount(fulcrum.args.org);
 
   const options = {
     ...POSTGRES_CONFIG,
@@ -98,8 +98,8 @@ async function activate() {
     // this.persistentTableNames = true;
   // }
 
-  const useAccountPrefix = (fulcrum.args.pgPrefix !== false);
-  const useUniqueViews = (fulcrum.args.pgUniqueViews !== false);
+  useAccountPrefix = (fulcrum.args.pgPrefix !== false);
+  useUniqueViews = (fulcrum.args.pgUniqueViews !== false);
 
   pool = new pg.Pool(options);
 
@@ -133,8 +133,8 @@ async function activate() {
     fulcrum.on('membership:delete', onMembershipSave);
   }
 
-  const viewSchema = fulcrum.args.pgSchemaViews || DEFAULT_SCHEMA;
-  const dataSchema = fulcrum.args.pgSchema || DEFAULT_SCHEMA;
+  viewSchema = fulcrum.args.pgSchemaViews || DEFAULT_SCHEMA;
+  dataSchema = fulcrum.args.pgSchema || DEFAULT_SCHEMA;
 
   // Fetch all the existing tables on startup. This allows us to special case the
   // creation of new tables even when the form isn't version 1. If the table doesn't
@@ -142,10 +142,10 @@ async function activate() {
   // of applying a schema diff.
   const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ dataSchema }'`);
 
-  const tableNames = rows.map(o => o.name);
+  tableNames = rows.map(o => o.name);
 
   // make a client so we can use it to build SQL statements
-  const pgdb = new Postgres({});
+  pgdb = new Postgres({});
 
   setupOptions();
 
@@ -339,12 +339,12 @@ async function updateObject(values, table) {
 const reloadTableList = async () => {
   const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ dataSchema }'`);
 
-  const tableNames = rows.map(o => o.name);
+  tableNames = rows.map(o => o.name);
 }
 
 const reloadViewList = async () => {
-  const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ this.viewSchema }'`);
-  this.viewNames = rows.map(o => o.name);
+  const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ viewSchema }'`);
+  viewNames = rows.map(o => o.name);
 }
 
 const baseMediaURL = () => {
@@ -414,7 +414,7 @@ function setupOptions() {
 
     // persistentTableNames: this.persistentTableNames,
 
-    accountPrefix: useAccountPrefix ? 'account_' + this.account.rowID : null,
+    accountPrefix: useAccountPrefix ? 'account_' + account.rowID : null,
 
     calculatedFieldDateFormat: 'date',
 
@@ -514,7 +514,7 @@ const updateForm = async (form, account, oldForm, newForm) => {
       calculatedFieldDateFormat: 'date',
       metadata: true,
       useResourceID: false,
-      accountPrefix: useAccountPrefix ? 'account_' + this.account.rowID : null
+      accountPrefix: useAccountPrefix ? 'account_' + account.rowID : null
     };
 
     const {statements} = await PostgresSchema.generateSchemaStatements(account, oldForm, newForm, options);
@@ -546,7 +546,7 @@ async function dropFriendlyView(form, repeatable) {
   const viewName = getFriendlyTableName(form, repeatable);
 
   try {
-    await run(format('DROP VIEW IF EXISTS %s.%s CASCADE;', escapeIdentifier(this.viewSchema), escapeIdentifier(viewName)));
+    await run(format('DROP VIEW IF EXISTS %s.%s CASCADE;', escapeIdentifier(viewSchema), escapeIdentifier(viewName)));
   } catch (ex) {
     integrityWarning(ex);
   }
@@ -557,7 +557,7 @@ async function createFriendlyView(form, repeatable) {
 
   try {
     await run(format('CREATE VIEW %s.%s AS SELECT * FROM %s;',
-                          escapeIdentifier(this.viewSchema),
+                          escapeIdentifier(viewSchema),
                           escapeIdentifier(viewName),
                           PostgresRecordValues.tableNameWithFormAndSchema(form, repeatable, recordValueOptions, '_view_full')));
   } catch (ex) {
@@ -569,8 +569,8 @@ async function createFriendlyView(form, repeatable) {
 function getFriendlyTableName(form, repeatable) {
   let name = compact([form.name, repeatable && repeatable.dataName]).join(' - ')
 
-  if (this.useUniqueViews) {
-    const formID = this.persistentTableNames ? form.id : form.rowID;
+  if (useUniqueViews) {
+    const formID = persistentTableNames ? form.id : form.rowID;
 
     const prefix = compact(['view', formID, repeatable && repeatable.key]).join(' - ');
 
@@ -632,12 +632,12 @@ async function cleanupFriendlyViews(account) {
     }
   }
 
-  const remove = difference(this.viewNames, activeViewNames);
+  const remove = difference(viewNames, activeViewNames);
 
   for (const viewName of remove) {
     if (viewName.indexOf('view_') === 0 || viewName.indexOf('view - ') === 0) {
       try {
-        await run(format('DROP VIEW IF EXISTS %s.%s;', escapeIdentifier(this.viewSchema), escapeIdentifier(viewName)));
+        await run(format('DROP VIEW IF EXISTS %s.%s;', escapeIdentifier(viewSchema), escapeIdentifier(viewName)));
       } catch (ex) {
         integrityWarning(ex);
       }
@@ -690,7 +690,7 @@ async function setupDatabase() {
 
 function prepareMigrationScript(sql) {
   return sql.replace(/__SCHEMA__/g, dataSchema)
-            .replace(/__VIEW_SCHEMA__/g, this.viewSchema);
+            .replace(/__VIEW_SCHEMA__/g, viewSchema);
 }
 
 async function setupSystemTables(account) {
@@ -788,7 +788,7 @@ async function setupSystemTables(account) {
 }
 
 async function maybeInitialize() {
-  const account = await fulcrum.fetchAccount(fulcrum.args.org);
+  account = await fulcrum.fetchAccount(fulcrum.args.org);
 
   if (tableNames.indexOf('migrations') === -1) {
     log('Inititalizing database...');
@@ -800,14 +800,14 @@ async function maybeInitialize() {
 }
 
 async function maybeRunMigrations(account) {
-  this.migrations = (await run(`SELECT name FROM ${ dataSchema }.migrations`)).map(o => o.name);
+  migrations = (await run(`SELECT name FROM ${ dataSchema }.migrations`)).map(o => o.name);
 
   let populateRecords = false;
 
   for (let count = 2; count <= CURRENT_VERSION; ++count) {
     const version = padStart(count, 3, '0');
 
-    const needsMigration = this.migrations.indexOf(version) === -1 && MIGRATIONS[version];
+    const needsMigration = migrations.indexOf(version) === -1 && MIGRATIONS[version];
 
     if (needsMigration) {
       await run(prepareMigrationScript(MIGRATIONS[version]));
@@ -1012,7 +1012,7 @@ export default class {
           return;
         }
 
-        const account = await fulcrum.fetchAccount(fulcrum.args.org);
+        account = await fulcrum.fetchAccount(fulcrum.args.org);
 
         if (account) {
           if (fulcrum.args.pgSystemTablesOnly) {
