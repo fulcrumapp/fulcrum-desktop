@@ -3,8 +3,7 @@ import App from '../app';
 
 const app = App.instance;
 
-let syncLoop = null;
-syncLoop = async (account, fullSync) => {
+const syncLoop = async (account, fullSync) => {
   const sync = true;
 
   const dataSource = await fulcrum.createDataSource(account);

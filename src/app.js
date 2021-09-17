@@ -11,7 +11,7 @@ import { DataSource } from 'fulcrum-core';
 import paths from './application-paths';
 import pluginLogger from './plugin-logger';
 import Logger from './logger';
-import Postgres from './plugins/postgres/plugin';
+import * as postgres from './plugins/postgres/plugin-module'
 
 const yargs = require('yargs')(process.argv.slice(3));
 
@@ -159,16 +159,14 @@ class App {
 
   async initializePlugins() {
     const PLUGINS = {
-      postgres: Postgres
+      postgres: postgres
     }
 
     for (const pluginName of Object.keys(PLUGINS)) {
       const logger = pluginLogger(pluginName);
-      const PluginClass = PLUGINS[pluginName];
+      const plugin = PLUGINS[pluginName];
 
       try {
-        const plugin = new PluginClass();
-
         this._pluginsByName[pluginName] = plugin;
         this._plugins.push(plugin);
 
@@ -184,6 +182,7 @@ class App {
 
   async activatePlugins() {
     for (const plugin of this._plugins) {
+      console.log(plugin.activate);
       await plugin.activate;
     }
   }

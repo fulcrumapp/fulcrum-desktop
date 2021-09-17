@@ -19,7 +19,7 @@ import version007 from './version-007.sql';
 const MAX_IDENTIFIER_LENGTH = 63;
 
 
-let log, warn, error, tableNames, viewNames, pgdb, pool, viewSchema, dataSchema, disableArrays, useAccountPrefix, useUniqueViews, disableComplexTypes, pgCustomModule, recordValueOptions, migrations, account;
+let log, warn, error, tableNames, viewNames, pgdb, pool, viewSchema, dataSchema, disableArrays, useAccountPrefix, useUniqueViews, disableComplexTypes, pgCustomModule, recordValueOptions, migrations, account, persistentTableNames;
 
 const POSTGRES_CONFIG = {
   database: 'fulcrumapp',
@@ -405,7 +405,7 @@ ${ ex.stack }
 function setupOptions() {
   baseMediaURL = fulcrum.args.pgMediaBaseUrl ? fulcrum.args.pgMediaBaseUrl : 'https://api.fulcrumapp.com/api/v2';
 
-  const recordValueOptions = {
+  recordValueOptions = {
     schema: dataSchema,
 
     disableArrays: disableArrays,
@@ -867,184 +867,178 @@ const progress = (name, index) => {
   updateStatus(name.green + ' : ' + index.toString().red);
 }
 
-export default class {
-  async task(cli) {
-    return cli.command({
-      command: 'fulcrum postgres',
-      desc: 'run the postgres sync for a specific organization',
-      builder: {
-        pgDatabase: {
-          desc: 'postgresql database name',
-          type: 'string',
-          default: POSTGRES_CONFIG.database
-        },
-        pgHost: {
-          desc: 'postgresql server host',
-          type: 'string',
-          default: POSTGRES_CONFIG.host
-        },
-        pgPort: {
-          desc: 'postgresql server port',
-          type: 'integer',
-          default: POSTGRES_CONFIG.port
-        },
-        pgUser: {
-          desc: 'postgresql user',
-          type: 'string'
-        },
-        pgPassword: {
-          desc: 'postgresql password',
-          type: 'string'
-        },
-        pgSchema: {
-          desc: 'postgresql schema',
-          type: 'string'
-        },
-        pgSchemaViews: {
-          desc: 'postgresql schema for the friendly views',
-          type: 'string'
-        },
-        pgSyncEvents: {
-          desc: 'add sync event hooks',
-          type: 'boolean',
-          default: true
-        },
-        pgBeforeFunction: {
-          desc: 'call this function before the sync',
-          type: 'string'
-        },
-        pgAfterFunction: {
-          desc: 'call this function after the sync',
-          type: 'string'
-        },
-        org: {
-          desc: 'organization name',
-          required: true,
-          type: 'string'
-        },
-        pgForm: {
-          desc: 'the form ID to rebuild',
-          type: 'string'
-        },
-        pgReportBaseUrl: {
-          desc: 'report URL base',
-          type: 'string'
-        },
-        pgMediaBaseUrl: {
-          desc: 'media URL base',
-          type: 'string'
-        },
-        pgUnderscoreNames: {
-          desc: 'use underscore names (e.g. "Park Inspections" becomes "park_inspections")',
-          required: false,
-          type: 'boolean',
-          default: true
-        },
-        pgRebuildViewsOnly: {
-          desc: 'only rebuild the views',
-          required: false,
-          type: 'boolean',
-          default: false
-        },
-        pgCustomModule: {
-          desc: 'a custom module to load with sync extensions',
-          required: false,
-          type: 'string'
-        },
-        pgSetup: {
-          desc: 'setup the database',
-          required: false,
-          type: 'boolean'
-        },
-        pgDrop: {
-          desc: 'drop the system tables',
-          required: false,
-          type: 'boolean',
-          default: false
-        },
-        pgArrays: {
-          desc: 'use array types for multi-value fields like choice fields, classification fields and media fields',
-          required: false,
-          type: 'boolean',
-          default: true
-        },
-        // pgPersistentTableNames: {
-        //   desc: 'use the server id in the form table names',
-        //   required: false,
-        //   type: 'boolean',
-        //   default: false
-        // },
-        pgPrefix: {
-          desc: 'use the organization as a prefix in the object names',
-          required: false,
-          type: 'boolean',
-          default: true
-        },
-        pgUniqueViews: {
-          desc: 'make sure the views are uniquely identifiable. Disabling this makes the views easier to use, but has limitations when forms are renamed. ONLY use this is you know you will not rename or swap out forms or drastically alter form schemas.',
-          required: false,
-          type: 'boolean',
-          default: true
-        },
-        pgSimpleTypes: {
-          desc: 'use simple types in the database that are more compatible with other applications (no tsvector, geometry, arrays)',
-          required: false,
-          type: 'boolean',
-          default: false
-        },
-        pgSystemTablesOnly: {
-          desc: 'only create the system records',
-          required: false,
-          type: 'boolean',
-          default: false
-        }
-      },
-      async handler(){
-        await activate();
+exports.command = 'postgres',
+exports.desc = 'run the postgres sync for a specific organization',
+exports.builder = {
+  pgDatabase: {
+    desc: 'postgresql database name',
+    type: 'string',
+    default: POSTGRES_CONFIG.database
+  },
+  pgHost: {
+    desc: 'postgresql server host',
+    type: 'string',
+    default: POSTGRES_CONFIG.host
+  },
+  pgPort: {
+    desc: 'postgresql server port',
+    type: 'integer',
+    default: POSTGRES_CONFIG.port
+  },
+  pgUser: {
+    desc: 'postgresql user',
+    type: 'string'
+  },
+  pgPassword: {
+    desc: 'postgresql password',
+    type: 'string'
+  },
+  pgSchema: {
+    desc: 'postgresql schema',
+    type: 'string'
+  },
+  pgSchemaViews: {
+    desc: 'postgresql schema for the friendly views',
+    type: 'string'
+  },
+  pgSyncEvents: {
+    desc: 'add sync event hooks',
+    type: 'boolean',
+    default: true
+  },
+  pgBeforeFunction: {
+    desc: 'call this function before the sync',
+    type: 'string'
+  },
+  pgAfterFunction: {
+    desc: 'call this function after the sync',
+    type: 'string'
+  },
+  org: {
+    desc: 'organization name',
+    required: true,
+    type: 'string'
+  },
+  pgForm: {
+    desc: 'the form ID to rebuild',
+    type: 'string'
+  },
+  pgReportBaseUrl: {
+    desc: 'report URL base',
+    type: 'string'
+  },
+  pgMediaBaseUrl: {
+    desc: 'media URL base',
+    type: 'string'
+  },
+  pgUnderscoreNames: {
+    desc: 'use underscore names (e.g. "Park Inspections" becomes "park_inspections")',
+    required: false,
+    type: 'boolean',
+    default: true
+  },
+  pgRebuildViewsOnly: {
+    desc: 'only rebuild the views',
+    required: false,
+    type: 'boolean',
+    default: false
+  },
+  pgCustomModule: {
+    desc: 'a custom module to load with sync extensions',
+    required: false,
+    type: 'string'
+  },
+  pgSetup: {
+    desc: 'setup the database',
+    required: false,
+    type: 'boolean'
+  },
+  pgDrop: {
+    desc: 'drop the system tables',
+    required: false,
+    type: 'boolean',
+    default: false
+  },
+  pgArrays: {
+    desc: 'use array types for multi-value fields like choice fields, classification fields and media fields',
+    required: false,
+    type: 'boolean',
+    default: true
+  },
+  // pgPersistentTableNames: {
+  //   desc: 'use the server id in the form table names',
+  //   required: false,
+  //   type: 'boolean',
+  //   default: false
+  // },
+  pgPrefix: {
+    desc: 'use the organization as a prefix in the object names',
+    required: false,
+    type: 'boolean',
+    default: true
+  },
+  pgUniqueViews: {
+    desc: 'make sure the views are uniquely identifiable. Disabling this makes the views easier to use, but has limitations when forms are renamed. ONLY use this is you know you will not rename or swap out forms or drastically alter form schemas.',
+    required: false,
+    type: 'boolean',
+    default: true
+  },
+  pgSimpleTypes: {
+    desc: 'use simple types in the database that are more compatible with other applications (no tsvector, geometry, arrays)',
+    required: false,
+    type: 'boolean',
+    default: false
+  },
+  pgSystemTablesOnly: {
+    desc: 'only create the system records',
+    required: false,
+    type: 'boolean',
+    default: false
+  }
+},
+exports.handler = async () => {
+  await activate();
 
-        if (fulcrum.args.pgDrop) {
-          await dropSystemTables();
-          return;
-        }
+  if (fulcrum.args.pgDrop) {
+    await dropSystemTables();
+    return;
+  }
 
-        if (fulcrum.args.pgSetup) {
-          await setupDatabase();
-          return;
-        }
+  if (fulcrum.args.pgSetup) {
+    await setupDatabase();
+    return;
+  }
 
-        account = await fulcrum.fetchAccount(fulcrum.args.org);
+  account = await fulcrum.fetchAccount(fulcrum.args.org);
 
-        if (account) {
-          if (fulcrum.args.pgSystemTablesOnly) {
-            await setupSystemTables(account);
-            return;
-          }
+  if (account) {
+    if (fulcrum.args.pgSystemTablesOnly) {
+      await setupSystemTables(account);
+      return;
+    }
 
-          await invokeBeforeFunction();
+    await invokeBeforeFunction();
 
-          const forms = await account.findActiveForms({});
+    const forms = await account.findActiveForms({});
 
-          for (const form of forms) {
-            if (fulcrum.args.pgForm && form.id !== fulcrum.args.pgForm) {
-              continue;
-            }
-
-            if (fulcrum.args.pgRebuildViewsOnly) {
-              await rebuildFriendlyViews(form, account);
-            } else {
-              await rebuildForm(form, account, (index) => {
-                updateStatus(form.name.green + ' : ' + index.toString().red + ' records');
-              });
-            }
-
-            log('');
-          }
-
-          await invokeAfterFunction();
-        } else {
-          error('Unable to find account', fulcrum.args.org);
-        }
+    for (const form of forms) {
+      if (fulcrum.args.pgForm && form.id !== fulcrum.args.pgForm) {
+        continue;
       }
-    });
+
+      if (fulcrum.args.pgRebuildViewsOnly) {
+        await rebuildFriendlyViews(form, account);
+      } else {
+        await rebuildForm(form, account, (index) => {
+          updateStatus(form.name.green + ' : ' + index.toString().red + ' records');
+        });
+      }
+
+      log('');
+    }
+
+    await invokeAfterFunction();
+  } else {
+    error('Unable to find account', fulcrum.args.org);
   }
 }
