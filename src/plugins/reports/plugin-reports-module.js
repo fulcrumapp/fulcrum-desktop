@@ -6,7 +6,7 @@ import ConcurrentQueue from './concurrent-queue'
 
 let template, header, footer, reportsPath, reportsFileName, account;
 
-exports.activate = async function activate() {
+exports.activate = async () => {
   const templateFile = fulcrum.args.reportsTemplate || path.join(__dirname, 'template.ejs');
 
   template = fs.readFileSync(templateFile).toString();
@@ -26,7 +26,7 @@ exports.activate = async function activate() {
   // fulcrum.on('record:save', this.onRecordSave);
 }
 
-exports.deactivate = async function deactivate() {};
+exports.deactivate = async () => {};
 
 const workerFunction = async (task) => {
   try {

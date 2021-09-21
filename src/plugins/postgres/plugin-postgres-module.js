@@ -54,7 +54,7 @@ function useSyncEvents() {
   return fulcrum.args.pgSyncEvents != null ? fulcrum.args.pgSyncEvents : true;
 }
 
-exports.activate = async function activate() {
+exports.activate = async () => {
   const logger = fulcrum.logger.withContext('postgres');
 
   log = logger.log;
@@ -152,7 +152,7 @@ exports.activate = async function activate() {
   await maybeInitialize();
 }
 
-exports.deactivate = async function deactivate() {
+exports.deactivate = async () => {
   if (pool) {
     await pool.end();
   }
