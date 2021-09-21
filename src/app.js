@@ -11,7 +11,10 @@ import { DataSource } from 'fulcrum-core';
 import paths from './application-paths';
 import pluginLogger from './plugin-logger';
 import Logger from './logger';
-import Postgres from './plugins/postgres/plugin';
+import * as postgres from './plugins/postgres/plugin-postgres-module';
+import * as mssql from './plugins/mssql/plugin-mssql-module';
+import * as media from './plugins/media/plugin-media-module';
+import * as reports from './plugins/reports/plugin-reports-module'
 
 const yargs = require('yargs')(process.argv.slice(3));
 
@@ -159,16 +162,17 @@ class App {
 
   async initializePlugins() {
     const PLUGINS = {
-      postgres: Postgres
+      postgres: postgres,
+      mssql: mssql,
+      media: media,
+      reports: reports
     }
 
     for (const pluginName of Object.keys(PLUGINS)) {
       const logger = pluginLogger(pluginName);
-      const PluginClass = PLUGINS[pluginName];
+      const plugin = PLUGINS[pluginName];
 
       try {
-        const plugin = new PluginClass();
-
         this._pluginsByName[pluginName] = plugin;
         this._plugins.push(plugin);
 
