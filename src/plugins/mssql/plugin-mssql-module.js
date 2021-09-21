@@ -53,7 +53,7 @@ function useSyncEvents() {
     return fulcrum.args.mssqlSyncEvents != null ? fulcrum.args.mssqlSyncEvents : true;
 }
 
-async function activate() {
+exports.activate = async function activate() {
   const logger = fulcrum.logger.withContext('postgres');
 
   log = logger.log;
@@ -145,7 +145,7 @@ async function activate() {
   await maybeInitialize();
 }
 
-async function deactivate() {
+exports.deactivate = async function deactivate() {
   if (pool) {
     await pool.close();
   }

@@ -54,7 +54,7 @@ function useSyncEvents() {
   return fulcrum.args.pgSyncEvents != null ? fulcrum.args.pgSyncEvents : true;
 }
 
-async function activate() {
+exports.activate = async function activate() {
   const logger = fulcrum.logger.withContext('postgres');
 
   log = logger.log;
@@ -152,7 +152,7 @@ async function activate() {
   await maybeInitialize();
 }
 
-async function deactivate() {
+exports.deactivate = async function deactivate() {
   if (pool) {
     await pool.end();
   }
@@ -173,10 +173,6 @@ function run (sql) {
       return resolve(res.rows);
     });
   });
-}
-
-log = (...args) => {
-  // console.log(...args);
 }
 
 const tableName = (account, name) => {
@@ -996,6 +992,7 @@ exports.builder = {
     default: false
   }
 },
+
 exports.handler = async () => {
   await activate();
 

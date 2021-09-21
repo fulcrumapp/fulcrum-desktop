@@ -151,7 +151,7 @@ class App {
   async dispose() {
     for (const plugin of this._plugins) {
       if (plugin.deactivate) {
-        await plugin.deactivate;
+        await plugin.deactivate();
       }
     }
 
@@ -169,6 +169,10 @@ class App {
     }
 
     for (const pluginName of Object.keys(PLUGINS)) {
+      if (process.env[`${pluginName.toUpperCase()}_PLUGIN_ENABLED`] !== '1') {
+        continue;
+      }
+
       const logger = pluginLogger(pluginName);
       const plugin = PLUGINS[pluginName];
 
@@ -188,7 +192,7 @@ class App {
 
   async activatePlugins() {
     for (const plugin of this._plugins) {
-      await plugin.activate;
+      await plugin.activate();
     }
   }
 
