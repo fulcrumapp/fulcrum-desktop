@@ -15,6 +15,8 @@ import * as postgres from './plugins/postgres/plugin-postgres-module';
 import * as mssql from './plugins/mssql/plugin-mssql-module';
 import * as media from './plugins/media/plugin-media-module';
 import * as reports from './plugins/reports/plugin-reports-module'
+import * as s3 from './plugins/s3/plugin-s3-module';
+import * as geopackage from './plugins/geopackage/plugin-geopackage-module';
 
 const yargs = require('yargs')(process.argv.slice(3));
 
@@ -165,7 +167,9 @@ class App {
       postgres: postgres,
       mssql: mssql,
       media: media,
-      reports: reports
+      reports: reports,
+      s3: s3,
+      geopackage: geopackage
     }
 
     for (const pluginName of Object.keys(PLUGINS)) {

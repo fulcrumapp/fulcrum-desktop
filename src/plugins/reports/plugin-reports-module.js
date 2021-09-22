@@ -4,9 +4,9 @@ import mkdirp from 'mkdirp';
 import { ReportGenerator, APIClient, core } from '../../api';
 import ConcurrentQueue from './concurrent-queue'
 
-let template, header, footer, reportsPath, reportsFileName, account;
+let template, header, footer, reportsPath, reportsFileName, account, queue;
 
-exports.activate = async () => {
+const activate = async () => {
   const templateFile = fulcrum.args.reportsTemplate || path.join(__dirname, 'template.ejs');
 
   template = fs.readFileSync(templateFile).toString();
@@ -25,6 +25,7 @@ exports.activate = async () => {
   mkdirp.sync(reportsPath);
   // fulcrum.on('record:save', this.onRecordSave);
 }
+exports.activate = activate;
 
 exports.deactivate = async () => {};
 

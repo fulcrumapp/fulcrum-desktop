@@ -8,7 +8,7 @@ import rimraf from 'rimraf';
 
 let log, warn, error, mediaPath, account, queue, worker;
 
-exports.activate = async () => {
+const activate = async () => {
   const logger = fulcrum.logger.withContext('media');
 
   log = logger.log;
@@ -28,6 +28,8 @@ exports.activate = async () => {
   // fulcrum.on('form:save', this.onFormSave);
   // fulcrum.on('records:finish', this.onRecordsFinished);
 }
+
+exports.activate = activate;
 
 exports.deactivate = async () => {};
 
