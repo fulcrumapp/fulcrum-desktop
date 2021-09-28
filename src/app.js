@@ -11,12 +11,6 @@ import { DataSource } from 'fulcrum-core';
 import paths from './application-paths';
 import pluginLogger from './plugin-logger';
 import Logger from './logger';
-import * as postgres from './plugins/postgres/plugin-postgres-module';
-import * as mssql from './plugins/mssql/plugin-mssql-module';
-import * as media from './plugins/media/plugin-media-module';
-import * as reports from './plugins/reports/plugin-reports-module'
-import * as s3 from './plugins/s3/plugin-s3-module';
-import * as geopackage from './plugins/geopackage/plugin-geopackage-module';
 
 const yargs = require('yargs')(process.argv.slice(3));
 
@@ -142,11 +136,11 @@ class App {
     }
   }
 
-  async initialize() {
+  async initialize(plugins) {
     this._db = await database({file: this.databaseFilePath});
     
     if (!this.args.safe) {
-      await this.initializePlugins();
+      await this.initializePlugins(plugins);
     }
   }
 
@@ -162,30 +156,19 @@ class App {
     }
   }
 
-  async initializePlugins() {
-    const PLUGINS = {
-      postgres: postgres,
-      mssql: mssql,
-      media: media,
-      reports: reports,
-      s3: s3,
-      geopackage: geopackage
-    }
-
-    for (const pluginName of Object.keys(PLUGINS)) {
-      if (process.env[`${pluginName.toUpperCase()}_PLUGIN_ENABLED`] !== '1') {
+  async initializePlugins(plugins) {
+    for (const plugin of plugins) {
+      if (process.env[`${plugin.command.toUpperCase()}_PLUGIN_ENABLED`] !== '1') {
         continue;
       }
-
-      const logger = pluginLogger(pluginName);
-      const plugin = PLUGINS[pluginName];
+      const logger = pluginLogger(plugin.command);
 
       try {
-        this._pluginsByName[pluginName] = plugin;
+        this._pluginsByName[plugin.command] = plugin;
         this._plugins.push(plugin);
 
         if (this.args.debug) {
-          logger.error('Loading plugin', pluginName);
+          logger.error('Loading plugin', plugin.command);
         }
       } catch (ex) {
         logger.error('Failed to load plugin', ex);

@@ -7,7 +7,7 @@ import ConcurrentQueue from './concurrent-queue'
 let template, header, footer, reportsPath, reportsFileName, account, queue;
 
 const activate = async () => {
-  const templateFile = fulcrum.args.reportsTemplate || path.join(__dirname, 'template.ejs');
+  const templateFile = fulcrum.args.reportsTemplate || path.join(process.cwd(), 'src', 'reports', 'template.ejs');
 
   template = fs.readFileSync(templateFile).toString();
 

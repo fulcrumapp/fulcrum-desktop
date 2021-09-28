@@ -47,6 +47,8 @@ export default class Logger {
 
     if (level !== INFO && fulcrum.args.debug) {
       console[level](message);
+    }else{
+      console[level](...args);
     }
   }
 
