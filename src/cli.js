@@ -4,7 +4,7 @@ import { Database } from 'minidb';
 import Account from './models/account';
 import fulcrumPackage from './version';
 import { DataSource } from 'fulcrum-core';
-import { commands } from './commands/index';
+import { commands, plugins } from './commands/command-exporter';
 import LocalDatabaseDataSource from './local-database-data-source';
 
 require('source-map-support').install();
@@ -25,7 +25,7 @@ export default class CLI {
       this.app.logger.log(this.args);
     }
 
-    await this.app.initialize();
+    await this.app.initialize(plugins);
   }
 
   async destroy() {
@@ -37,7 +37,9 @@ export default class CLI {
 
     cli.$0 = '';
 
-    this.argv = await cli.command(commands)
+    const enabledCommands = commands.concat(plugins);
+
+    this.argv = await cli.command(enabledCommands)
         .demandCommand()
         .version(fulcrumPackage.version)
         .help()

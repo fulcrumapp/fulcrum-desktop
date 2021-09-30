@@ -11,7 +11,6 @@ import { DataSource } from 'fulcrum-core';
 import paths from './application-paths';
 import pluginLogger from './plugin-logger';
 import Logger from './logger';
-import Postgres from './plugins/postgres/plugin';
 
 const yargs = require('yargs')(process.argv.slice(3));
 
@@ -137,18 +136,18 @@ class App {
     }
   }
 
-  async initialize() {
+  async initialize(plugins) {
     this._db = await database({file: this.databaseFilePath});
     
     if (!this.args.safe) {
-      await this.initializePlugins();
+      await this.initializePlugins(plugins);
     }
   }
 
   async dispose() {
     for (const plugin of this._plugins) {
       if (plugin.deactivate) {
-        await plugin.deactivate;
+        await plugin.deactivate();
       }
     }
 
@@ -157,23 +156,19 @@ class App {
     }
   }
 
-  async initializePlugins() {
-    const PLUGINS = {
-      postgres: Postgres
-    }
-
-    for (const pluginName of Object.keys(PLUGINS)) {
-      const logger = pluginLogger(pluginName);
-      const PluginClass = PLUGINS[pluginName];
+  async initializePlugins(plugins) {
+    for (const plugin of plugins) {
+      if (process.env[`${plugin.command.toUpperCase()}_PLUGIN_ENABLED`] !== '1') {
+        continue;
+      }
+      const logger = pluginLogger(plugin.command);
 
       try {
-        const plugin = new PluginClass();
-
-        this._pluginsByName[pluginName] = plugin;
+        this._pluginsByName[plugin.command] = plugin;
         this._plugins.push(plugin);
 
         if (this.args.debug) {
-          logger.error('Loading plugin', pluginName);
+          logger.error('Loading plugin', plugin.command);
         }
       } catch (ex) {
         logger.error('Failed to load plugin', ex);
@@ -184,7 +179,7 @@ class App {
 
   async activatePlugins() {
     for (const plugin of this._plugins) {
-      await plugin.activate;
+      await plugin.activate();
     }
   }
 

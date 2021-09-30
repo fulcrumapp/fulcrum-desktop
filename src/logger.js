@@ -32,8 +32,6 @@ export default class Logger {
   }
 
   withContext = (context) => {
-    const logger = this;
-
     return {
       log: (...args) => this.output(LOG, context, ...args),
       warn: (...args) => this.output(WARN, context, ...args),
@@ -43,9 +41,13 @@ export default class Logger {
   }
 
   output = (level, context, ...args) => {
-    this.write(this.prefix(LEVELS[level] || LOG, context) + ' ' + format(...args));
+    const message = this.prefix(LEVELS[level] || LOG, context) + ' ' + format(...args);
 
-    if (level !== INFO && !fulcrum.args.debug) {
+    this.write(message);
+
+    if (level !== INFO && fulcrum.args.debug) {
+      console[level](message);
+    }else{
       console[level](...args);
     }
   }

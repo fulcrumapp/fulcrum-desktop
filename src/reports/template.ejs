@@ -2,13 +2,12 @@
 <html class='no-js' lang='en'>
   <head>
     <title>Fulcrum Report</title>
-    <meta content='recurse=no' name='fulcrum-report-settings'>
     <style>
       @font-face {
-        font-family: "Open Sans";
-        font-style: normal;
-        font-weight: 400;
-        src: local("Open Sans"), local("OpenSans"), url(file:///Users/zac/Dropbox/dev/fulcrum_app2/db/default_report_font.ttf) format("truetype");
+        font-family: "Open Sans", sans-serif;
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
       }
 
       html, body {
@@ -129,10 +128,10 @@
           <h1 class="field-section"><%= element.label %></h1>
           <div class='field-clear'></div>
         <% } else if (element.isRepeatableElement) { %>
-          <h1 class="field-section"><%= value.displayValue %></h1>
+          <h1 class="field-section"><%= value && value.displayValue %></h1>
           <div class='field-clear'></div>
         <% } else { %>
-          <% if (!value.isEmpty) { %>
+          <% if (value && !value.isEmpty) { %>
             <div class="field">
               <h2 class="field-label"><%= element.label %></h2>
               <div class="field-value"><%= value.displayValue %></div>

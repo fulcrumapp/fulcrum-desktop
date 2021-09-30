@@ -1,0 +1,8 @@
+{
+    "postgres": true,
+    "mssql": false,
+    "media": true,
+    "reports": true,
+    "geopackage": true,
+    "s3": true
+}
