@@ -1,69 +1,99 @@
 # Plugins
 
-Plugins are extensions to the Fulcrum Desktop application. Each plugin adds a little piece
-of functionality to accomplish a specific task.
+Plugins are extensions to the Fulcrum Desktop application. Each plugin has its own functionality to accomplish a specific task.
 
 ## Available Plugins
 
-* [GeoPackage](https://github.com/fulcrumapp/fulcrum-desktop-geopackage)
-* [S3](https://github.com/fulcrumapp/fulcrum-desktop-s3)
-* [Reports](https://github.com/fulcrumapp/fulcrum-desktop-reports)
-* [PostgreSQL](https://github.com/fulcrumapp/fulcrum-desktop-postgres)
+You can enable which plugins to use during the execution of the application.
 
-To install or use plugins, you will first need a basic development environment. The development
-environment consists of Git, Nodejs and Yarn. Eventually it will not be necessary to install these
-to *use* plugins and it will only be required if you want to develop plugins.
+## Database plugins
 
-## macOS
+Fulcrum Desktop syncs with an internal SQLite database, similar to the database embedded within the mobile applications. This internal fulcrum.db database is not very user-friendly, so you will likely want to install one of the database plugins, which include more user-friendly app record views. Note that none of these plugins automatically creates the database.
 
-* `brew install node yarn`
+### PostgreSQL
 
-## Linux
+If you want to sync your PostgreSQL database with your Fulcrum Organization, you can enable this plugin. Be sure you have a database already created with the PostGIS extension installed. You can name your database "fulcrumapp" to use the default settings. 
 
-```sh
-curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+To enable PostGIS you can run:
 
-echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+`CREATE EXTENSION postgis;`
 
-curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash -
-
-sudo apt-get update
-
-sudo apt-get install -y git make build-essential nodejs yarn
-```
-
-## Windows
-
-* [Install Git](https://git-scm.com/downloads)
-* [Install Nodejs](https://nodejs.org/en/download/current/)
-* [Install Yarn](https://yarnpkg.com/en/docs/install)
-
-Once you have these installed, you can now install Fulcrum Desktop Plugins.
+Keep the database in sync with your Organization:
 
 ```sh
-fulcrum install-plugin --url https://github.com/fulcrumapp/fulcrum-desktop-geopackage
+fulcrum sync --org 'Organization Name' --pg-database 'mydatabase' --forever
 ```
 
-Once you've installed the plugin, it will now be accessible to use from the `fulcrum` command.
+### MS SQL Server
+
+If you want to sync your Fulcrum Organization with MS SQL Server, enable this plugin. Be sure you have a database already created. You can name your database "fulcrumapp" to use the default settings.
+
+Keep the database in sync with your Organization:
 
 ```sh
-fulcrum --help
+fulcrum sync --org 'Organization Name' --forever --mssql-user 'USERNAME' --mssql-password 'PASSWORD' --mssql-host 'localhost'
 ```
 
-To create a new plugin:
+### GeoPackage
+
+If you want to sync your Fulcrum Organization with your GeoPackage database for transferring geospatial information, enable this plugin.
+
+Setup the database:
 
 ```sh
-./run create-plugin --name my-plugin
+fulcrum geopackage --org 'Organization Name'
 ```
 
-To install a plugin:
+This will create a GeoPackage file in the following path:
 
 ```sh
-./run install-plugin --name geopackage
-
-./run install-plugin --name reports
-
-./run install-plugin --name postgres
-
-./run install-plugin --name s3
+/.fulcrum/geopackage/Organization Name.gpkg
 ```
+
+Keep the database in sync with your Organization:
+
+```sh
+fulcrum sync --org 'Organization Name' --forever
+```
+
+## Media plugins
+
+In addition to syncing database records. Fulcrum Desktop supports intelligently downloading media files.
+
+### Media
+
+Concurrent file downloads and automatic retries for Fulcrum media files (photos, videos, audio, signatures) and associated track files for spatial video & audio (gpx, kml, geojson, json, srt).
+
+Download all media files for your Organization:
+
+```sh
+fulcrum media --org 'Organization Name'
+```
+
+You can pass the directory where you want to storage these files with the `--media-path` option, but the default path is:
+
+```sh
+/.fulcrum/media
+```
+
+### S3
+
+Sync media to your own Amazon Simple Storage Service (Amazon S3) bucket.
+
+```sh
+fulcrum sync --org 'Organization Name' --s3-access-key-id 'KEY' --s3-secret-access-key 'SECRET' --s3-bucket 'MYBUCKET'
+```
+
+## Other plugins
+
+### Reports
+
+Generate custom PDF reports from Fulcrum data. To customize reports, edit template.ejs or use the `--template` option to reference a custom .ejs embedded JavaScript template file.
+
+```sh
+fulcrum reports --org 'Organization Name' --form 'Form Name' --template custom.ejs
+```
+
+## 
+
+#### More detailed information on the use of these plugins can be found [here](https://docs.fulcrumapp.com/docs/desktop-sync).
