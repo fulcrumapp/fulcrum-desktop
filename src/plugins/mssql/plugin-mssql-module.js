@@ -1,9 +1,8 @@
 import mssql from 'mssql';
 import { format } from 'util';
 import MSSQLSchema from './schema';
-import { MSSQL } from '../../api';
-import MSSQLRecordValues from '../../api'
-import snake from 'snake-case';
+import { MSSQLRecordValues, MSSQL } from '../../api';
+import { snakeCase } from 'snake-case';
 import templateDrop from './template.drop.sql';
 import SchemaMap from './schema-map';
 import * as api from '../../api';
@@ -16,7 +15,7 @@ import version004 from './version-004.sql';
 import version005 from './version-005.sql';
 import version006 from './version-006.sql';
 
-let log, warn, error, info, dataSchema, viewSchema, sql, pool, mssqlCustomModule, disableArrays, disableComplexTypes, useAccountPrefix, progress, account, tableNames, oldForm, migrations;
+let log, warn, error, info, dataSchema, viewSchema, viewNames, mssqldb, pool, mssqlCustomModule, disableArrays, disableComplexTypes, useAccountPrefix, progress, account, tableNames, oldForm, migrations, persistentTableNames, recordValueOptions;
 
 const MAX_IDENTIFIER_LENGTH = 100;
 
@@ -26,7 +25,10 @@ const MSSQL_CONFIG = {
   port: 1433,
   max: 10,
   idleTimeoutMillis: 30000,
-  requestTimeout: 120000
+  requestTimeout: 120000,
+  options: {
+    trustServerCertificate: true,
+  }
 };
 
 const MIGRATIONS = {
@@ -42,23 +44,24 @@ const CURRENT_VERSION = 6;
 const DEFAULT_SCHEMA = 'dbo';
 
 function trimIdentifier(identifier) {
-    return identifier.substring(0, MAX_IDENTIFIER_LENGTH);
+  return identifier.substring(0, MAX_IDENTIFIER_LENGTH);
 }
 
 function escapeIdentifier (identifier) {
-    return identifier && mssql.ident(trimIdentifier(identifier));
+  return identifier && mssqldb.ident(trimIdentifier(identifier));
 }
 
-function useSyncEvents() {
-    return fulcrum.args.mssqlSyncEvents != null ? fulcrum.args.mssqlSyncEvents : true;
+function useSyncEventsFn() {
+  return fulcrum.args.mssqlSyncEvents != null ? fulcrum.args.mssqlSyncEvents : true;
 }
 
 const activate = async () => {
-  const logger = fulcrum.logger.withContext('postgres');
+  const logger = fulcrum.logger.withContext('mssql');
 
   log = logger.log;
   warn = logger.warn;
   error = logger.error;
+  info = logger.info;
 
   account = await fulcrum.fetchAccount(fulcrum.args.org);
 
@@ -96,7 +99,7 @@ const activate = async () => {
 
   pool = await mssql.connect(fulcrum.args.mssqlConnectionString || options);
 
-  if (useSyncEvents) {
+  if (useSyncEventsFn()) {
     fulcrum.on('sync:start', onSyncStart);
     fulcrum.on('sync:finish', onSyncFinish);
     fulcrum.on('photo:save', onPhotoSave);
@@ -138,7 +141,7 @@ const activate = async () => {
   tableNames = rows.map(o => o.name);
 
   // make a client so we can use it to build SQL statements
-  mssql = new MSSQL({});
+  mssqldb = new MSSQL({});
 
   setupOptions();
 
@@ -176,27 +179,27 @@ const runAll = async (statements) => {
 }
 
 const runAllTransaction = async (statements) => {
-    const transaction = new mssql.Transaction(pool);
+  const transaction = new mssql.Transaction(pool);
 
-    await transaction.begin();
+  await transaction.begin();
 
-    const results = [];
+  const results = [];
 
-    for (const sql of statements) {
-      const request = new mssql.Request(transaction);
+  for (const sql of statements) {
+    const request = new mssql.Request(transaction);
 
-      if (fulcrum.args.debug) {
-        log(sql);
-      }
-
-      const result = await request.batch(sql);
-
-      results.push(result);
+    if (fulcrum.args.debug) {
+      log(sql);
     }
 
-    await transaction.commit();
+    const result = await request.batch(sql);
 
-    return results;
+    results.push(result);
+  }
+
+  await transaction.commit();
+
+  return results;
 }
 
 const log = (...args) => {
@@ -204,193 +207,193 @@ const log = (...args) => {
 }
 
 const tableName = (account, name) => {
+  return 'account_' + account.rowID + '_' + name;
+
+  if (useAccountPrefix) {
     return 'account_' + account.rowID + '_' + name;
+  }
 
-    if (useAccountPrefix) {
-      return 'account_' + account.rowID + '_' + name;
-    }
-
-    return name;
+  return name;
 }
 
 const onSyncStart = async ({account, tasks}) => {
-    await invokeBeforeFunction();
+  await invokeBeforeFunction();
 }
 
 const onSyncFinish = async ({account}) => {
-    await cleanupFriendlyViews(account);
-    await invokeAfterFunction();
+  await cleanupFriendlyViews(account);
+  await invokeAfterFunction();
 }
 
 const onFormSave = async ({form, account, oldForm, newForm}) => {
-    await updateForm(form, account, oldForm, newForm);
+  await updateForm(form, account, oldForm, newForm);
 }
 
 const onFormDelete = async ({form, account}) => {
-    const oldForm = {
-      id: form._id,
-      row_id: form.rowID,
-      name: form._name,
-      elements: form._elementsJSON
-    };
+  const oldForm = {
+    id: form._id,
+    row_id: form.rowID,
+    name: form._name,
+    elements: form._elementsJSON
+  };
 
-    await updateForm(form, account, oldForm, null);
+  await updateForm(form, account, oldForm, null);
 }
 
 const onRecordSave = async ({record, account}) => {
-    await updateRecord(record, account);
+  await updateRecord(record, account);
 }
 
 const onRecordDelete = async ({record}) => {
-    const statements = MSSQLRecordValues.deleteForRecordStatements(mssql, record, record.form, recordValueOptions);
+  const statements = MSSQLRecordValues.deleteForRecordStatements(mssqldb, record, record.form, recordValueOptions);
 
-    await run(statements.map(o => o.sql).join('\n'));
+  await run(statements.map(o => o.sql).join('\n'));
 }
 
 const onPhotoSave = async ({photo, account}) => {
-    await updatePhoto(photo, account);
+  await updatePhoto(photo, account);
 }
 
 const onVideoSave = async ({video, account}) => {
-    await updateVideo(video, account);
+  await updateVideo(video, account);
 }
 
 const onAudioSave = async ({audio, account}) => {
-    await updateAudio(audio, account);
+  await updateAudio(audio, account);
 }
 
 const onSignatureSave = async ({signature, account}) => {
-    await updateSignature(signature, account);
+  await updateSignature(signature, account);
 }
 
 const onChangesetSave = async ({changeset, account}) => {
-    await updateChangeset(changeset, account);
+  await updateChangeset(changeset, account);
 }
 
 const onChoiceListSave = async ({choiceList, account}) => {
-    await updateChoiceList(choiceList, account);
+  await updateChoiceList(choiceList, account);
 }
 
 const onClassificationSetSave = async ({classificationSet, account}) => {
-    await updateClassificationSet(classificationSet, account);
+  await updateClassificationSet(classificationSet, account);
 }
 
 const onProjectSave = async ({project, account}) => {
-    await updateProject(project, account);
+  await updateProject(project, account);
 }
 
 const onRoleSave = async ({role, account}) => {
-    await updateRole(role, account);
+  await updateRole(role, account);
 }
 
 const onMembershipSave = async ({membership, account}) => {
-    await updateMembership(membership, account);
+  await updateMembership(membership, account);
 }
 
 async function updatePhoto(object, account) {
-    const values = SchemaMap.photo(object);
+  const values = SchemaMap.photo(object);
 
-    values.file = formatPhotoURL(values.access_key);
+  values.file = formatPhotoURL(values.access_key);
 
-    await updateObject(values, 'photos');
+  await updateObject(values, 'photos');
 }
 
 async function updateVideo(object, account) {
-    const values = SchemaMap.video(object);
+  const values = SchemaMap.video(object);
 
-    values.file = formatVideoURL(values.access_key);
+  values.file = formatVideoURL(values.access_key);
 
-    await updateObject(values, 'videos');
+  await updateObject(values, 'videos');
 }
 
 async function updateAudio(object, account) {
-    const values = SchemaMap.audio(object);
+  const values = SchemaMap.audio(object);
 
-    values.file = formatAudioURL(values.access_key);
+  values.file = formatAudioURL(values.access_key);
 
-    await updateObject(values, 'audio');
+  await updateObject(values, 'audio');
 }
 
 async function updateSignature(object, account) {
-    const values = SchemaMap.signature(object);
+  const values = SchemaMap.signature(object);
 
-    values.file = formatSignatureURL(values.access_key);
+  values.file = formatSignatureURL(values.access_key);
 
-    await updateObject(values, 'signatures');
+  await updateObject(values, 'signatures');
 }
 
 async function updateChangeset(object, account) {
-    await updateObject(SchemaMap.changeset(object), 'changesets');
+  await updateObject(SchemaMap.changeset(object), 'changesets');
 }
 
 async function updateProject(object, account) {
-    await updateObject(SchemaMap.project(object), 'projects');
+  await updateObject(SchemaMap.project(object), 'projects');
 }
 
 async function updateMembership(object, account) {
-    await updateObject(SchemaMap.membership(object), 'memberships');
+  await updateObject(SchemaMap.membership(object), 'memberships');
 }
 
 async function updateRole(object, account) {
-    await updateObject(SchemaMap.role(object), 'roles');
+  await updateObject(SchemaMap.role(object), 'roles');
 }
 
 async function updateFormObject(object, account) {
-    await updateObject(SchemaMap.form(object), 'forms');
+  await updateObject(SchemaMap.form(object), 'forms');
 }
 
 async function updateChoiceList(object, account) {
-    await updateObject(SchemaMap.choiceList(object), 'choice_lists');
+  await updateObject(SchemaMap.choiceList(object), 'choice_lists');
 }
 
 async function updateClassificationSet(object, account) {
-    await updateObject(SchemaMap.classificationSet(object), 'classification_sets');
+  await updateObject(SchemaMap.classificationSet(object), 'classification_sets');
 }
 
 async function updateObject(values, table) {
-    const deleteStatement = mssql.deleteStatement(`${ dataSchema }.system_${table}`, {row_resource_id: values.row_resource_id});
-    const insertStatement = mssql.insertStatement(`${ dataSchema }.system_${table}`, values, {pk: 'id'});
+  const deleteStatement = mssqldb.deleteStatement(`${ dataSchema }.system_${table}`, {row_resource_id: values.row_resource_id});
+  const insertStatement = mssqldb.insertStatement(`${ dataSchema }.system_${table}`, values, {pk: 'id'});
 
-    const sql = [ deleteStatement.sql, insertStatement.sql ].join('\n');
+  const sql = [ deleteStatement.sql, insertStatement.sql ].join('\n');
 
-    try {
-      await run(sql);
-    } catch (ex) {
-      warn(`updateObject ${table} failed`);
-      integrityWarning(ex);
-      throw ex;
-    }
+  try {
+    await run(sql);
+  } catch (ex) {
+    warn(`updateObject ${table} failed`);
+    integrityWarning(ex);
+    throw ex;
+  }
 }
 
 const reloadTableList = async () => {
-    const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ dataSchema }'`);
+  const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ dataSchema }'`);
 
-    tableNames = rows.map(o => o.name);
+  tableNames = rows.map(o => o.name);
 }
 
 const reloadViewList = async () => {
-    const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ viewSchema }'`);
+  const rows = await run(`SELECT table_name AS name FROM information_schema.tables WHERE table_schema='${ viewSchema }'`);
 
-    viewNames = rows.map(o => o.name);
+  viewNames = rows.map(o => o.name);
 }
 
 const baseMediaURL = () => {
 }
 
 const formatPhotoURL = (id) => {
-    return `${ baseMediaURL }/photos/${ id }.jpg`;
+  return `${ baseMediaURL }/photos/${ id }.jpg`;
 }
 
 const formatVideoURL = (id) => {
-    return `${ baseMediaURL }/videos/${ id }.mp4`;
+  return `${ baseMediaURL }/videos/${ id }.mp4`;
 }
 
 const formatAudioURL = (id) => {
-    return `${ baseMediaURL }/audio/${ id }.m4a`;
+  return `${ baseMediaURL }/audio/${ id }.m4a`;
 }
 
 const formatSignatureURL = (id) => {
-    return `${ baseMediaURL }/signatures/${ id }.png`;
+  return `${ baseMediaURL }/signatures/${ id }.png`;
 }
 
 function integrityWarning(ex) {
@@ -427,507 +430,507 @@ ${ ex.stack }
 }
 
 function setupOptions() {
-    baseMediaURL = fulcrum.args.mssqlMediaBaseUrl ? fulcrum.args.mssqlMediaBaseUrl : 'https://api.fulcrumapp.com/api/v2';
+  baseMediaURL = fulcrum.args.mssqlMediaBaseUrl ? fulcrum.args.mssqlMediaBaseUrl : 'https://api.fulcrumapp.com/api/v2';
 
-    recordValueOptions = {
-      schema: dataSchema,
+  recordValueOptions = {
+    schema: dataSchema,
 
-      escapeIdentifier: escapeIdentifier,
+    escapeIdentifier: escapeIdentifier(),
 
-      disableArrays: disableArrays,
+    disableArrays: disableArrays,
 
-      persistentTableNames: persistentTableNames,
+    persistentTableNames: persistentTableNames,
 
-      accountPrefix: useAccountPrefix ? 'account_' + account.rowID : null,
+    accountPrefix: useAccountPrefix ? 'account_' + account.rowID : null,
 
-      calculatedFieldDateFormat: 'date',
+    calculatedFieldDateFormat: 'date',
 
-      disableComplexTypes: disableComplexTypes,
+    disableComplexTypes: disableComplexTypes,
 
-      valuesTransformer: mssqlCustomModule && mssqlCustomModule.valuesTransformer,
+    valuesTransformer: mssqlCustomModule && mssqlCustomModule.valuesTransformer,
 
-      mediaURLFormatter: (mediaValue) => {
+    mediaURLFormatter: (mediaValue) => {
 
-        return mediaValue.items.map((item) => {
-          if (mediaValue.element.isPhotoElement) {
-            return formatPhotoURL(item.mediaID);
-          } else if (mediaValue.element.isVideoElement) {
-            return formatVideoURL(item.mediaID);
-          } else if (mediaValue.element.isAudioElement) {
-            return formatAudioURL(item.mediaID);
-          }
-
-          return null;
-        });
-      },
-
-      mediaViewURLFormatter: (mediaValue) => {
-        const ids = mediaValue.items.map(o => o.mediaID);
-
+      return mediaValue.items.map((item) => {
         if (mediaValue.element.isPhotoElement) {
-          return `${ baseMediaURL }/photos/view?photos=${ ids }`;
+          return formatPhotoURL(item.mediaID);
         } else if (mediaValue.element.isVideoElement) {
-          return `${ baseMediaURL }/videos/view?videos=${ ids }`;
+          return formatVideoURL(item.mediaID);
         } else if (mediaValue.element.isAudioElement) {
-          return `${ baseMediaURL }/audio/view?audio=${ ids }`;
+          return formatAudioURL(item.mediaID);
         }
 
         return null;
-      }
-    };
+      });
+    },
 
-    if (fulcrum.args.mssqlReportBaseUrl) {
-      recordValueOptions.reportURLFormatter = (feature) => {
-        return `${ fulcrum.args.mssqlReportBaseUrl }/reports/${ feature.id }.pdf`;
-      };
+    mediaViewURLFormatter: (mediaValue) => {
+      const ids = mediaValue.items.map(o => o.mediaID);
+
+      if (mediaValue.element.isPhotoElement) {
+        return `${ baseMediaURL }/photos/view?photos=${ ids }`;
+      } else if (mediaValue.element.isVideoElement) {
+        return `${ baseMediaURL }/videos/view?videos=${ ids }`;
+      } else if (mediaValue.element.isAudioElement) {
+        return `${ baseMediaURL }/audio/view?audio=${ ids }`;
+      }
+
+      return null;
     }
+  };
+
+  if (fulcrum.args.mssqlReportBaseUrl) {
+    recordValueOptions.reportURLFormatter = (feature) => {
+      return `${ fulcrum.args.mssqlReportBaseUrl }/reports/${ feature.id }.pdf`;
+    };
+  }
 }
 
 const updateRecord = async (record, account, skipTableCheck) => {
-    if (!skipTableCheck && !rootTableExists(record.form)) {
-      await rebuildForm(record.form, account, () => {});
-    }
+  if (!skipTableCheck && !rootTableExists(record.form)) {
+    await rebuildForm(record.form, account, () => {});
+  }
 
-    if (mssqlCustomModule && mssqlCustomModule.shouldUpdateRecord && !mssqlCustomModule.shouldUpdateRecord({record, account})) {
-      return;
-    }
+  if (mssqlCustomModule && mssqlCustomModule.shouldUpdateRecord && !mssqlCustomModule.shouldUpdateRecord({record, account})) {
+    return;
+  }
 
-    const statements = MSSQLRecordValues.updateForRecordStatements(mssql, record, recordValueOptions);
+  const statements = MSSQLRecordValues.updateForRecordStatements(mssqldb, record, recordValueOptions);
 
-    await runSkippingFailures(
-      `Skipping record ${record.id} in form ${record.form.id}.`,
-      () => run(statements.map(o => o.sql).join('\n'))
-    );
+  await runSkippingFailures(
+    `Skipping record ${record.id} in form ${record.form.id}.`,
+    () => run(statements.map(o => o.sql).join('\n'))
+  );
 
-    const systemValues = MSSQLRecordValues.systemColumnValuesForFeature(record, null, record, recordValueOptions);
+  const systemValues = MSSQLRecordValues.systemColumnValuesForFeature(record, null, record, recordValueOptions);
 
-    await updateObject(SchemaMap.record(record, systemValues), 'records');
+  await updateObject(SchemaMap.record(record, systemValues), 'records');
 }
 
 const rootTableExists = (form) => {
-    return tableNames.indexOf(MSSQLRecordValues.tableNameWithForm(form, null, recordValueOptions)) !== -1;
+  return tableNames.indexOf(MSSQLRecordValues.tableNameWithForm(form, null, recordValueOptions)) !== -1;
 }
 
 const recreateFormTables = async (form, account) => {
-    try {
-      await updateForm(form, account, formVersion(form), null);
-    } catch (ex) {
-      if (fulcrum.args.debug) {
-        error(ex);
-      }
+  try {
+    await updateForm(form, account, formVersion(form), null);
+  } catch (ex) {
+    if (fulcrum.args.debug) {
+      error(ex);
     }
+  }
 
-    await updateForm(form, account, null, formVersion(form));
+  await updateForm(form, account, null, formVersion(form));
 }
 
 const updateForm = async (form, account, oldForm, newForm) => {
-    if (mssqlCustomModule && mssqlCustomModule.shouldUpdateForm && !mssqlCustomModule.shouldUpdateForm({form, account})) {
-      return;
+  if (mssqlCustomModule && mssqlCustomModule.shouldUpdateForm && !mssqlCustomModule.shouldUpdateForm({form, account})) {
+    return;
+  }
+
+  try {
+    info('Updating form', form.id);
+
+    await updateFormObject(form, account);
+
+    if (!rootTableExists(form) && newForm != null) {
+      oldForm = null;
     }
 
-    try {
-      info('Updating form', form.id);
+    const options = {
+      disableArrays: disableArrays,
+      disableComplexTypes: false,
+      userModule: mssqlCustomModule,
+      tableSchema: dataSchema,
+      calculatedFieldDateFormat: 'date',
+      metadata: true,
+      useResourceID: persistentTableNames,
+      accountPrefix: useAccountPrefix ? 'account_' + account.rowID : null
+    };
 
-      await updateFormObject(form, account);
+    const {statements} = await MSSQLSchema.generateSchemaStatements(account, oldForm, newForm, options);
 
-      if (!rootTableExists(form) && newForm != null) {
-        oldForm = null;
-      }
+    info('Dropping views', form.id);
 
-      const options = {
-        disableArrays: disableArrays,
-        disableComplexTypes: false,
-        userModule: mssqlCustomModule,
-        tableSchema: dataSchema,
-        calculatedFieldDateFormat: 'date',
-        metadata: true,
-        useResourceID: persistentTableNames,
-        accountPrefix: useAccountPrefix ? 'account_' + account.rowID : null
-      };
-
-      const {statements} = await MSSQLSchema.generateSchemaStatements(account, oldForm, newForm, options);
-
-      info('Dropping views', form.id);
-
-      await dropFriendlyView(form, null);
-
-      for (const repeatable of form.elementsOfType('Repeatable')) {
-        await dropFriendlyView(form, repeatable);
-      }
-
-      info('Running schema statements', form.id, statements.length);
-
-      info('Schema statements', '\n', statements.join('\n'));
-
-      await runSkippingFailures(
-        `Skipping form ${form.id}.`,
-        async () => {
-          await runAllTransaction(statements);
-
-          info('Creating views', form.id);
-    
-          if (newForm) {
-            await createFriendlyView(form, null);
-    
-            for (const repeatable of form.elementsOfType('Repeatable')) {
-              await createFriendlyView(form, repeatable);
-            }
-          }
-    
-          info('Completed form update', form.id);
-        }
-      );
-    } catch (ex) {
-      info('updateForm failed');
-      integrityWarning(ex);
-      throw ex;
-    }
-}
-
-async function dropFriendlyView(form, repeatable) {
-    const viewName = getFriendlyTableName(form, repeatable);
-
-    try {
-      await run(format("IF OBJECT_ID('%s.%s', 'V') IS NOT NULL DROP VIEW %s.%s;",
-                            escapeIdentifier(viewSchema), escapeIdentifier(viewName),
-                            escapeIdentifier(viewSchema), escapeIdentifier(viewName)));
-    } catch (ex) {
-      warn('dropFriendlyView failed');
-      integrityWarning(ex);
-    }
-}
-
-async function createFriendlyView(form, repeatable) {
-    const viewName = getFriendlyTableName(form, repeatable);
-
-    try {
-      await run(format('CREATE VIEW %s.%s AS SELECT * FROM %s;',
-                            escapeIdentifier(viewSchema),
-                            escapeIdentifier(viewName),
-                            MSSQLRecordValues.tableNameWithFormAndSchema(form, repeatable, recordValueOptions, '_view_full')));
-    } catch (ex) {
-      // sometimes it doesn't exist
-      warn('createFriendlyView failed');
-      integrityWarning(ex);
-    }
-}
-
-function getFriendlyTableName(form, repeatable) {
-    const name = compact([form.name, repeatable && repeatable.dataName]).join(' - ')
-
-    const formID = persistentTableNames ? form.id : form.rowID;
-
-    const prefix = compact(['view', formID, repeatable && repeatable.key]).join(' - ');
-
-    const objectName = [prefix, name].join(' - ');
-
-    return trimIdentifier(fulcrum.args.mssqlUnderscoreNames !== false ? snake(objectName) : objectName);
-}
-
-async function invokeBeforeFunction() {
-    if (fulcrum.args.mssqlBeforeFunction) {
-      await run(format('EXECUTE %s;', fulcrum.args.mssqlBeforeFunction));
-    }
-    if (mssqlCustomModule && mssqlCustomModule.beforeSync) {
-      await mssqlCustomModule.beforeSync();
-    }
-}
-
-async function invokeAfterFunction() {
-    if (fulcrum.args.mssqlAfterFunction) {
-      await run(format('EXECUTE %s;', fulcrum.args.mssqlAfterFunction));
-    }
-    if (mssqlCustomModule && mssqlCustomModule.afterSync) {
-      await mssqlCustomModule.afterSync();
-    }
-}
-
-async function rebuildForm(form, account, progress) {
-    await recreateFormTables(form, account);
-    await reloadTableList();
-
-    let index = 0;
-
-    await form.findEachRecord({}, async (record) => {
-      record.form = form;
-
-      if (++index % 10 === 0) {
-        progress(index);
-      }
-
-      await updateRecord(record, account, true);
-    });
-
-    progress(index);
-}
-
-async function cleanupFriendlyViews(account) {
-    await reloadViewList();
-
-    const activeViewNames = [];
-
-    const forms = await account.findActiveForms({});
-
-    for (const form of forms) {
-      activeViewNames.push(getFriendlyTableName(form, null));
-
-      for (const repeatable of form.elementsOfType('Repeatable')) {
-        activeViewNames.push(getFriendlyTableName(form, repeatable));
-      }
-    }
-
-    const remove = difference(viewNames, activeViewNames);
-
-    for (const viewName of remove) {
-      if (viewName.indexOf('view_') === 0 || viewName.indexOf('view - ') === 0) {
-        try {
-          await run(format("IF OBJECT_ID('%s.%s', 'V') IS NOT NULL DROP VIEW %s.%s;",
-                                escapeIdentifier(viewSchema), escapeIdentifier(viewName),
-                                escapeIdentifier(viewSchema), escapeIdentifier(viewName)));
-        } catch (ex) {
-          warn('cleanupFriendlyViews failed');
-          integrityWarning(ex);
-        }
-      }
-    }
-}
-
-async function rebuildFriendlyViews(form, account) {
     await dropFriendlyView(form, null);
 
     for (const repeatable of form.elementsOfType('Repeatable')) {
       await dropFriendlyView(form, repeatable);
     }
 
-    await createFriendlyView(form, null);
+    info('Running schema statements', form.id, statements.length);
+
+    info('Schema statements', '\n', statements.join('\n'));
+
+    await runSkippingFailures(
+      `Skipping form ${form.id}.`,
+      async () => {
+        await runAllTransaction(statements);
+
+        info('Creating views', form.id);
+  
+        if (newForm) {
+          await createFriendlyView(form, null);
+  
+          for (const repeatable of form.elementsOfType('Repeatable')) {
+            await createFriendlyView(form, repeatable);
+          }
+        }
+  
+        info('Completed form update', form.id);
+      }
+    );
+  } catch (ex) {
+    info('updateForm failed');
+    integrityWarning(ex);
+    throw ex;
+  }
+}
+
+async function dropFriendlyView(form, repeatable) {
+  const viewName = getFriendlyTableName(form, repeatable);
+
+  try {
+    await run(format("IF OBJECT_ID('%s.%s', 'V') IS NOT NULL DROP VIEW %s.%s;",
+                          escapeIdentifier(viewSchema), escapeIdentifier(viewName),
+                          escapeIdentifier(viewSchema), escapeIdentifier(viewName)));
+  } catch (ex) {
+    warn('dropFriendlyView failed');
+    integrityWarning(ex);
+  }
+}
+
+async function createFriendlyView(form, repeatable) {
+  const viewName = getFriendlyTableName(form, repeatable);
+
+  try {
+    await run(format('CREATE VIEW %s.%s AS SELECT * FROM %s;',
+                          escapeIdentifier(viewSchema),
+                          escapeIdentifier(viewName),
+                          MSSQLRecordValues.tableNameWithFormAndSchema(form, repeatable, recordValueOptions, '_view_full')));
+  } catch (ex) {
+    // sometimes it doesn't exist
+    warn('createFriendlyView failed');
+    integrityWarning(ex);
+  }
+}
+
+function getFriendlyTableName(form, repeatable) {
+  const name = compact([form.name, repeatable && repeatable.dataName]).join(' - ')
+
+  const formID = persistentTableNames ? form.id : form.rowID;
+
+  const prefix = compact(['view', formID, repeatable && repeatable.key]).join(' - ');
+
+  const objectName = [prefix, name].join(' - ');
+
+  return trimIdentifier(fulcrum.args.mssqlUnderscoreNames !== false ? snakeCase(objectName) : objectName);
+}
+
+async function invokeBeforeFunction() {
+  if (fulcrum.args.mssqlBeforeFunction) {
+    await run(format('EXECUTE %s;', fulcrum.args.mssqlBeforeFunction));
+  }
+  if (mssqlCustomModule && mssqlCustomModule.beforeSync) {
+    await mssqlCustomModule.beforeSync();
+  }
+}
+
+async function invokeAfterFunction() {
+  if (fulcrum.args.mssqlAfterFunction) {
+    await run(format('EXECUTE %s;', fulcrum.args.mssqlAfterFunction));
+  }
+  if (mssqlCustomModule && mssqlCustomModule.afterSync) {
+    await mssqlCustomModule.afterSync();
+  }
+}
+
+async function rebuildForm(form, account, progress) {
+  await recreateFormTables(form, account);
+  await reloadTableList();
+
+  let index = 0;
+
+  await form.findEachRecord({}, async (record) => {
+    record.form = form;
+
+    if (++index % 10 === 0) {
+      progress(index);
+    }
+
+    await updateRecord(record, account, true);
+  });
+
+  progress(index);
+}
+
+async function cleanupFriendlyViews(account) {
+  await reloadViewList();
+
+  const activeViewNames = [];
+
+  const forms = await account.findActiveForms({});
+
+  for (const form of forms) {
+    activeViewNames.push(getFriendlyTableName(form, null));
 
     for (const repeatable of form.elementsOfType('Repeatable')) {
-      await createFriendlyView(form, repeatable);
+      activeViewNames.push(getFriendlyTableName(form, repeatable));
     }
+  }
+
+  const remove = difference(viewNames, activeViewNames);
+
+  for (const viewName of remove) {
+    if (viewName.indexOf('view_') === 0 || viewName.indexOf('view - ') === 0) {
+      try {
+        await run(format("IF OBJECT_ID('%s.%s', 'V') IS NOT NULL DROP VIEW %s.%s;",
+                              escapeIdentifier(viewSchema), escapeIdentifier(viewName),
+                              escapeIdentifier(viewSchema), escapeIdentifier(viewName)));
+      } catch (ex) {
+        warn('cleanupFriendlyViews failed');
+        integrityWarning(ex);
+      }
+    }
+  }
+}
+
+async function rebuildFriendlyViews(form, account) {
+  await dropFriendlyView(form, null);
+
+  for (const repeatable of form.elementsOfType('Repeatable')) {
+    await dropFriendlyView(form, repeatable);
+  }
+
+  await createFriendlyView(form, null);
+
+  for (const repeatable of form.elementsOfType('Repeatable')) {
+    await createFriendlyView(form, repeatable);
+  }
 }
 
 const formVersion = (form) => {
-    if (form == null) {
-      return null;
-    }
+  if (form == null) {
+    return null;
+  }
 
-    return {
-      id: form._id,
-      row_id: form.rowID,
-      name: form._name,
-      elements: form._elementsJSON
-    };
+  return {
+    id: form._id,
+    row_id: form.rowID,
+    name: form._name,
+    elements: form._elementsJSON
+  };
 }
 
 const updateStatus = (message) => {
-    if (process.stdout.isTTY) {
-      process.stdout.clearLine();
-      process.stdout.cursorTo(0);
-      process.stdout.write(message);
-    }
+  if (process.stdout.isTTY) {
+    process.stdout.clearLine();
+    process.stdout.cursorTo(0);
+    process.stdout.write(message);
+  }
 }
 
 async function dropSystemTables() {
-    await runAll(prepareMigrationScript(templateDrop));
+  await runAll(prepareMigrationScript(templateDrop));
 }
 
 function createDatabase(databaseName) {
-    log('Creating database', databaseName);
-    return run(`CREATE DATABASE ${databaseName};`);
+  log('Creating database', databaseName);
+  return run(`CREATE DATABASE ${databaseName};`);
 }
 
 function dropDatabase(databaseName) {
-    log('Dropping database', databaseName);
-    return run(`DROP DATABASE ${databaseName};`);
+  log('Dropping database', databaseName);
+  return run(`DROP DATABASE ${databaseName};`);
 }
 
 async function setupDatabase() {
-    await runAll(prepareMigrationScript(version001));
+  await runAll(prepareMigrationScript(version001));
 }
 
 function prepareMigrationScript(sql) {
-    return sql.replace(/__SCHEMA__/g, dataSchema)
+  return sql.replace(/__SCHEMA__/g, dataSchema)
               .replace(/__VIEW_SCHEMA__/g, viewSchema).split(';');
 }
 
 async function setupSystemTables(account) {
-    const progress = (name, index) => {
-      updateStatus(name.green + ' : ' + index.toString().red);
-    };
+  const progress = (name, index) => {
+    updateStatus(name.green + ' : ' + index.toString().red);
+  };
 
-    await account.findEachPhoto({}, async (photo, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Photos', index);
-      }
+  await account.findEachPhoto({}, async (photo, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Photos', index);
+    }
 
-      await updatePhoto(photo, account);
-    });
+    await updatePhoto(photo, account);
+  });
 
-    await account.findEachVideo({}, async (video, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Videos', index);
-      }
+  await account.findEachVideo({}, async (video, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Videos', index);
+    }
 
-      await updateVideo(video, account);
-    });
+    await updateVideo(video, account);
+  });
 
-    await account.findEachAudio({}, async (audio, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Audio', index);
-      }
+  await account.findEachAudio({}, async (audio, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Audio', index);
+    }
 
-      await updateAudio(audio, account);
-    });
+    await updateAudio(audio, account);
+  });
 
-    await account.findEachSignature({}, async (signature, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Signatures', index);
-      }
+  await account.findEachSignature({}, async (signature, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Signatures', index);
+    }
 
-      await updateSignature(signature, account);
-    });
+    await updateSignature(signature, account);
+  });
 
-    await account.findEachChangeset({}, async (changeset, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Changesets', index);
-      }
+  await account.findEachChangeset({}, async (changeset, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Changesets', index);
+    }
 
-      await updateChangeset(changeset, account);
-    });
+    await updateChangeset(changeset, account);
+  });
 
-    await account.findEachRole({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Roles', index);
-      }
+  await account.findEachRole({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Roles', index);
+    }
 
-      await updateRole(object, account);
-    });
+    await updateRole(object, account);
+  });
 
-    await account.findEachProject({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Projects', index);
-      }
+  await account.findEachProject({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Projects', index);
+    }
 
-      await updateProject(object, account);
-    });
+    await updateProject(object, account);
+  });
 
-    await account.findEachForm({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Forms', index);
-      }
+  await account.findEachForm({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Forms', index);
+    }
 
-      await updateFormObject(object, account);
-    });
+    await updateFormObject(object, account);
+  });
 
-    await account.findEachMembership({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Memberships', index);
-      }
+  await account.findEachMembership({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Memberships', index);
+    }
 
-      await updateMembership(object, account);
-    });
+    await updateMembership(object, account);
+  });
 
-    await account.findEachChoiceList({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Choice Lists', index);
-      }
+  await account.findEachChoiceList({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Choice Lists', index);
+    }
 
-      await updateChoiceList(object, account);
-    });
+    await updateChoiceList(object, account);
+  });
 
-    await account.findEachClassificationSet({}, async (object, {index}) => {
-      if (++index % 10 === 0) {
-        progress('Classification Sets', index);
-      }
+  await account.findEachClassificationSet({}, async (object, {index}) => {
+    if (++index % 10 === 0) {
+      progress('Classification Sets', index);
+    }
 
-      await updateClassificationSet(object, account);
-    });
+    await updateClassificationSet(object, account);
+  });
 }
 
-function isAutomaticInitializationDisabled() {
-    return fulcrum.args.mssqlCreateDatabase ||
-      fulcrum.args.mssqlDropDatabase ||
-      fulcrum.args.mssqlDrop ||
-      fulcrum.args.mssqlSetup;
+function isAutomaticInitializationDisabledFn() {
+  return fulcrum.args.mssqlCreateDatabase ||
+    fulcrum.args.mssqlDropDatabase ||
+    fulcrum.args.mssqlDrop ||
+    fulcrum.args.mssqlSetup;
   }
 
 async function maybeInitialize() {
-    if (isAutomaticInitializationDisabled) {
-      return;
-    }
+  if (isAutomaticInitializationDisabledFn()) {
+    return;
+  }
 
-    const account = await fulcrum.fetchAccount(fulcrum.args.org);
+  const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
-    if (tableNames.indexOf('migrations') === -1) {
-      log('Inititalizing database...');
+  if (tableNames.indexOf('migrations') === -1) {
+    log('Inititalizing database...');
 
-      await setupDatabase();
-    }
+    await setupDatabase();
+  }
 
-    await maybeRunMigrations(account);
+  await maybeRunMigrations(account);
 }
 
 async function maybeRunMigrations(account) {
-    migrations = (await run(`SELECT name FROM ${ dataSchema }.migrations`)).map(o => o.name);
+  migrations = (await run(`SELECT name FROM ${ dataSchema }.migrations`)).map(o => o.name);
 
-    let populateRecords = false;
+  let populateRecords = false;
 
-    for (let count = 2; count <= CURRENT_VERSION; ++count) {
-      const version = padStart(count, 3, '0');
+  for (let count = 2; count <= CURRENT_VERSION; ++count) {
+    const version = padStart(count, 3, '0');
 
-      const needsMigration = migrations.indexOf(version) === -1 && MIGRATIONS[version];
+    const needsMigration = migrations.indexOf(version) === -1 && MIGRATIONS[version];
 
-      if (needsMigration) {
-        await runAll(prepareMigrationScript(MIGRATIONS[version]));
+    if (needsMigration) {
+      await runAll(prepareMigrationScript(MIGRATIONS[version]));
 
-        if (version === '002') {
-          log('Populating system tables...');
-          populateRecords = true;
-        }
-        else if (version === '005') {
-          log('Migrating date calculation fields...');
-          await migrateCalculatedFieldsDateFormat(account);
-        }
+      if (version === '002') {
+        log('Populating system tables...');
+        populateRecords = true;
+      }
+      else if (version === '005') {
+        log('Migrating date calculation fields...');
+        await migrateCalculatedFieldsDateFormat(account);
       }
     }
+  }
 
-    if (populateRecords) {
-      await populateRecords(account);
-    }
+  if (populateRecords) {
+    await populateRecordsFn(account);
+  }
 }
 
-async function populateRecords(account) {
-    const forms = await account.findActiveForms({});
+async function populateRecordsFn(account) {
+  const forms = await account.findActiveForms({});
 
-    let index = 0;
+  let index = 0;
 
-    for (const form of forms) {
-      index = 0;
+  for (const form of forms) {
+    index = 0;
 
-      await form.findEachRecord({}, async (record) => {
-        record.form = form;
+    await form.findEachRecord({}, async (record) => {
+      record.form = form;
 
-        if (++index % 10 === 0) {
-          progress(form.name, index);
-        }
+      if (++index % 10 === 0) {
+        progress(form.name, index);
+      }
 
-        await updateRecord(record, account, false);
-      });
-    }
+      await updateRecord(record, account, false);
+    });
+  }
 }
 
 async function migrateCalculatedFieldsDateFormat(account) {
-    const forms = await account.findActiveForms({});
+  const forms = await account.findActiveForms({});
 
-    for (const form of forms) {
-      const fields = form.elementsOfType('CalculatedField').filter(element => element.display.isDate);
+  for (const form of forms) {
+    const fields = form.elementsOfType('CalculatedField').filter(element => element.display.isDate);
 
-      if (fields.length) {
-        log('Migrating date calculation fields in form...', form.name);
+    if (fields.length) {
+      log('Migrating date calculation fields in form...', form.name);
 
-        await rebuildForm(form, account, () => {});
-      }
+      await rebuildForm(form, account, () => {});
     }
+  }
   }
 
   progress = (name, index) => {
@@ -935,23 +938,23 @@ async function migrateCalculatedFieldsDateFormat(account) {
 }
 
 const runSkippingFailures = async (context, block) => {
-    if (!fulcrum.args.mssqlSkipFailures) {
-      return block();
-    }
+  if (!fulcrum.args.mssqlSkipFailures) {
+    return block();
+  }
 
-    try {
-      await block();
-    } catch (ex) {
-      if (ex.message.indexOf('maximum row size of 8060') !== -1) {
-        log('Row too large.', context, ex.message);
-      } else if (ex.message.indexOf('maximum of 1024 columns') !== -1) {
-        log('Table too large.', context, ex.message);
-      } else if (ex.message.indexOf('Invalid object name') !== -1) {
-        log('Invalid object name.', context, ex.message);
-      } else {
-        throw ex;
-      }
+  try {
+    await block();
+  } catch (ex) {
+    if (ex.message.indexOf('maximum row size of 8060') !== -1) {
+      log('Row too large.', context, ex.message);
+    } else if (ex.message.indexOf('maximum of 1024 columns') !== -1) {
+      log('Table too large.', context, ex.message);
+    } else if (ex.message.indexOf('Invalid object name') !== -1) {
+      log('Invalid object name.', context, ex.message);
+    } else {
+      throw ex;
     }
+  }
 }
 
 exports.command = 'mssql',

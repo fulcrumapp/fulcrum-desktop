@@ -6,7 +6,7 @@ import { APIClient, core } from '../../api';
 import request from 'request';
 import rimraf from 'rimraf';
 
-let log, warn, error, mediaPath, account, queue, worker;
+let log, warn, error, mediaPath, account, queue;
 
 const activate = async () => {
   const logger = fulcrum.logger.withContext('media');
@@ -14,8 +14,6 @@ const activate = async () => {
   log = logger.log;
   warn = logger.warn;
   error = logger.error
-
-  account = await fulcrum.fetchAccount(fulcrum.args.org);
 
   mediaPath = fulcrum.args.mediaPath || fulcrum.dir('media');
 

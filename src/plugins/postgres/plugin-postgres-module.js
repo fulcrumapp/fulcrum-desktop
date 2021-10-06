@@ -18,7 +18,6 @@ import version007 from './version-007.sql';
 
 const MAX_IDENTIFIER_LENGTH = 63;
 
-
 let log, warn, error, tableNames, viewNames, pgdb, pool, viewSchema, dataSchema, disableArrays, useAccountPrefix, useUniqueViews, disableComplexTypes, pgCustomModule, recordValueOptions, migrations, account, persistentTableNames;
 
 const POSTGRES_CONFIG = {
@@ -823,11 +822,11 @@ async function maybeRunMigrations(account) {
   }
 
   if (populateRecords) {
-    await populateRecords(account);
+    await populateRecordsFn(account);
   }
 }
 
-async function populateRecords(account) {
+async function populateRecordsFn(account) {
   const forms = await account.findActiveForms({});
 
   let index = 0;
@@ -1008,7 +1007,7 @@ exports.handler = async () => {
     return;
   }
 
-  account = await fulcrum.fetchAccount(fulcrum.args.org);
+  const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
   if (account) {
     if (fulcrum.args.pgSystemTablesOnly) {
