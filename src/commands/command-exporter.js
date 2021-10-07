@@ -25,7 +25,7 @@ const filteredEnabledPlugins = () => {
 
     const enabledPluginNames = Object.keys(filteredPlugins);
 
-    const pluginModules = [geopackage, media, mssql, reports, reports, s3];
+    const pluginModules = [geopackage, media, mssql, postgres, reports, s3];
 
     return pluginModules.filter((plugin) => enabledPluginNames.includes(plugin.command));
 }

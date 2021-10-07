@@ -785,7 +785,7 @@ async function setupSystemTables(account) {
 }
 
 async function maybeInitialize() {
-  account = await fulcrum.fetchAccount(fulcrum.args.org);
+  const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
   if (tableNames.indexOf('migrations') === -1) {
     log('Inititalizing database...');

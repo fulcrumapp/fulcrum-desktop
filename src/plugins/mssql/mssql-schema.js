@@ -218,6 +218,7 @@ Schema.systemRepeatableTableColumns = [
   }, {
     name: 'record_status',
     type: 'string',
+    length: 100
   }, {
     name: 'index', // TODO(zhm) make this work in the app
     type: 'integer'
