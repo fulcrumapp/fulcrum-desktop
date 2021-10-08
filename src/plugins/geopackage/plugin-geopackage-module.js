@@ -1,8 +1,8 @@
 import path from 'path';
 import { SQLite } from '../../api';
-import snake from 'snake-case';
+import { snakeCase } from 'snake-case';
 
-let db, tableNames;
+let db;
 
 const activate = async () => {
   const defaultDatabaseOptions = {
@@ -296,13 +296,13 @@ const isSpecialTable = (tableName) => {
 async function reloadTableList() {
   const rows = await db.all(`SELECT tbl_name AS name FROM sqlite_master WHERE type = 'table';`);
 
-  tableNames = rows.map(o => o.name);
+  const tableNames = rows.map(o => o.name);
 }
 
 const getFriendlyTableName = (form, repeatable) => {
   const name = repeatable ? `${form.name} - ${repeatable.dataName}` : form.name;
 
-  return fulcrum.args.gpkgUnderscoreNames ? snake(name) : name;
+  return fulcrum.args.gpkgUnderscoreNames ? snakeCase(name) : name;
 }
 
 exports.command = 'geopackage',

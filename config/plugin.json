@@ -1,8 +1,8 @@
 {
     "postgres": true,
     "mssql": false,
-    "media": true,
-    "reports": true,
-    "geopackage": true,
-    "s3": true
+    "media": false,
+    "reports": false,
+    "geopackage": false,
+    "s3": false
 }

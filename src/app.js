@@ -158,9 +158,6 @@ class App {
 
   async initializePlugins(plugins) {
     for (const plugin of plugins) {
-      if (process.env[`${plugin.command.toUpperCase()}_PLUGIN_ENABLED`] !== '1') {
-        continue;
-      }
       const logger = pluginLogger(plugin.command);
 
       try {

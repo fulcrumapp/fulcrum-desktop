@@ -1,12 +1,12 @@
 import pg from 'pg';
 import { format } from 'util';
+import * as api from '../../api';
+import SchemaMap from './schema-map';
 import PostgresSchema from './schema';
-import { PostgresRecordValues, Postgres } from '../../api';
 import { snakeCase } from 'snake-case';
 import templateDrop from './template.drop.sql';
-import SchemaMap from './schema-map';
-import * as api from '../../api';
 import { compact, difference, padStart } from 'lodash';
+import { PostgresRecordValues, Postgres } from '../../api';
 
 import version001 from './version-001.sql';
 import version002 from './version-002.sql';
@@ -17,7 +17,6 @@ import version006 from './version-006.sql';
 import version007 from './version-007.sql';
 
 const MAX_IDENTIFIER_LENGTH = 63;
-
 
 let log, warn, error, tableNames, viewNames, pgdb, pool, viewSchema, dataSchema, disableArrays, useAccountPrefix, useUniqueViews, disableComplexTypes, pgCustomModule, recordValueOptions, migrations, account, persistentTableNames;
 
@@ -786,7 +785,7 @@ async function setupSystemTables(account) {
 }
 
 async function maybeInitialize() {
-  account = await fulcrum.fetchAccount(fulcrum.args.org);
+  const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
   if (tableNames.indexOf('migrations') === -1) {
     log('Inititalizing database...');
@@ -823,11 +822,11 @@ async function maybeRunMigrations(account) {
   }
 
   if (populateRecords) {
-    await populateRecords(account);
+    await populateRecordsFn(account);
   }
 }
 
-async function populateRecords(account) {
+async function populateRecordsFn(account) {
   const forms = await account.findActiveForms({});
 
   let index = 0;
@@ -1008,7 +1007,7 @@ exports.handler = async () => {
     return;
   }
 
-  account = await fulcrum.fetchAccount(fulcrum.args.org);
+  const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
   if (account) {
     if (fulcrum.args.pgSystemTablesOnly) {

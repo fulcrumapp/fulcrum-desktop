@@ -1,12 +1,12 @@
+import fs from 'fs';
 import path from 'path';
 import mkdirp from 'mkdirp';
-import ConcurrentQueue from './concurrent-queue';
-import fs from 'fs';
-import { APIClient, core } from '../../api';
-import request from 'request';
 import rimraf from 'rimraf';
+import request from 'request';
+import { APIClient, core } from '../../api';
+import ConcurrentQueue from './concurrent-queue';
 
-let log, warn, error, mediaPath, account, queue, worker;
+let log, warn, error, mediaPath, account, queue;
 
 const activate = async () => {
   const logger = fulcrum.logger.withContext('media');
@@ -14,8 +14,6 @@ const activate = async () => {
   log = logger.log;
   warn = logger.warn;
   error = logger.error
-
-  account = await fulcrum.fetchAccount(fulcrum.args.org);
 
   mediaPath = fulcrum.args.mediaPath || fulcrum.dir('media');
 

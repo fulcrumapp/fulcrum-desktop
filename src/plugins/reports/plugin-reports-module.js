@@ -1,22 +1,22 @@
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
 import mkdirp from 'mkdirp';
+import ConcurrentQueue from './concurrent-queue';
 import { ReportGenerator, APIClient, core } from '../../api';
-import ConcurrentQueue from './concurrent-queue'
 
-let template, header, footer, reportsPath, reportsFileName, account, queue;
+let thisTemplate, thisHeader, thisFooter, reportsPath, reportsFileName, fulcrumAccount, queue;
 
 const activate = async () => {
   const templateFile = fulcrum.args.reportsTemplate || path.join(process.cwd(), 'src', 'reports', 'template.ejs');
 
-  template = fs.readFileSync(templateFile).toString();
+  thisTemplate = fs.readFileSync(templateFile).toString();
 
   if (fulcrum.args.reportsHeader) {
-    header = fs.readFileSync(fulcrum.args.reportsHeader).toString();
+    thisHeader = fs.readFileSync(fulcrum.args.reportsHeader).toString();
   }
 
   if (fulcrum.args.reportsFooter) {
-    footer = fs.readFileSync(fulcrum.args.reportsFooter).toString();
+    thisFooter = fs.readFileSync(fulcrum.args.reportsFooter).toString();
   }
 
   reportsPath = fulcrum.args.reportsPath || fulcrum.dir('reports');
@@ -31,7 +31,7 @@ exports.deactivate = async () => {};
 
 const workerFunction = async (task) => {
   try {
-    const record = await account.findFirstRecord({id: task.id});
+    const record = await fulcrumAccount.findFirstRecord({id: task.id});
 
     await record.getForm();
 
@@ -57,9 +57,9 @@ const runReport = async ({record, template, header, footer, cover}) => {
   const params = {
     reportName: fileName,
     directory: reportsPath,
-    template: template || template,
-    header: header || header,
-    footer: footer || footer,
+    template: template || thisTemplate,
+    header: header || thisHeader,
+    footer: footer || thisFooter,
     cover,
     data: {
       DateUtils: core.DateUtils,
@@ -97,7 +97,7 @@ const getPhotoURL = (item) => {
     return path.join(fulcrum.args.reportsMediaPath, 'photos', item.mediaID + '.jpg');
   }
 
-  const url = APIClient.getPhotoURL(account, {id: item.mediaID}).replace('?', '/large?');
+  const url = APIClient.getPhotoURL(fulcrumAccount, {id: item.mediaID}).replace('?', '/large?');
 
   if (url.indexOf('.jpg') === -1) {
     return url.replace('?', '.jpg?');
@@ -197,13 +197,13 @@ exports.builder = {
 exports.handler = async () => {
   await activate();
 
-  account = await fulcrum.fetchAccount(fulcrum.args.org);
+  const account = await fulcrum.fetchAccount(fulcrum.args.org);
 
   const skipForms = fulcrum.args.reportsSkip || [];
   const includeForms = fulcrum.args.form != null ? fulcrum.args.form : null;
 
   if (account) {
-    account = account;
+    fulcrumAccount = account;
 
     const forms = await account.findForms({});
 

@@ -33,7 +33,7 @@ Schema.systemFormTableColumns = [
   }, {
     name: 'status',
     type: 'string',
-    length: Infinity
+    length: 100
   }, {
     name: 'latitude',
     type: 'double'
