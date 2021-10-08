@@ -1,10 +1,11 @@
-import AWS from 'aws-sdk';
-import path from 'path';
-import mkdirp from 'mkdirp';
 import fs from 'fs';
+import path from 'path';
+import tempy from 'tempy';
+import AWS from 'aws-sdk';
+import mkdirp from 'mkdirp';
 import rimraf from 'rimraf';
 import { APIClient } from '../../api';
-import tempy from 'tempy';
+
 
 let log, warn, error, s3;
 

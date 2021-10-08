@@ -1,11 +1,11 @@
 import mssql from 'mssql';
 import { format } from 'util';
+import * as api from '../../api';
 import MSSQLSchema from './schema';
-import { MSSQLRecordValues, MSSQL } from '../../api';
+import SchemaMap from './schema-map';
 import { snakeCase } from 'snake-case';
 import templateDrop from './template.drop.sql';
-import SchemaMap from './schema-map';
-import * as api from '../../api';
+import { MSSQLRecordValues, MSSQL } from '../../api';
 import { compact, difference, padStart } from 'lodash';
 
 import version001 from './version-001.sql';
@@ -47,7 +47,7 @@ function trimIdentifier(identifier) {
   return identifier.substring(0, MAX_IDENTIFIER_LENGTH);
 }
 
-function escapeIdentifier (identifier) {
+const escapeIdentifier = (identifier) => {
   return identifier && mssqldb.ident(trimIdentifier(identifier));
 }
 
@@ -435,7 +435,7 @@ function setupOptions() {
   recordValueOptions = {
     schema: dataSchema,
 
-    escapeIdentifier: escapeIdentifier(),
+    escapeIdentifier: escapeIdentifier,
 
     disableArrays: disableArrays,
 

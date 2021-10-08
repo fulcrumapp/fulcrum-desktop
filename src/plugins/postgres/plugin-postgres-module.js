@@ -1,12 +1,12 @@
 import pg from 'pg';
 import { format } from 'util';
+import * as api from '../../api';
+import SchemaMap from './schema-map';
 import PostgresSchema from './schema';
-import { PostgresRecordValues, Postgres } from '../../api';
 import { snakeCase } from 'snake-case';
 import templateDrop from './template.drop.sql';
-import SchemaMap from './schema-map';
-import * as api from '../../api';
 import { compact, difference, padStart } from 'lodash';
+import { PostgresRecordValues, Postgres } from '../../api';
 
 import version001 from './version-001.sql';
 import version002 from './version-002.sql';

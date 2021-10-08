@@ -1,6 +1,6 @@
 import path from 'path';
 import { SQLite } from '../../api';
-import snake from 'snake-case';
+import { snakeCase } from 'snake-case';
 
 let db;
 

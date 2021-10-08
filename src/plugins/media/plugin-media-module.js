@@ -1,10 +1,10 @@
+import fs from 'fs';
 import path from 'path';
 import mkdirp from 'mkdirp';
-import ConcurrentQueue from './concurrent-queue';
-import fs from 'fs';
-import { APIClient, core } from '../../api';
-import request from 'request';
 import rimraf from 'rimraf';
+import request from 'request';
+import { APIClient, core } from '../../api';
+import ConcurrentQueue from './concurrent-queue';
 
 let log, warn, error, mediaPath, account, queue;
 
