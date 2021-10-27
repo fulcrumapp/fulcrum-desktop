@@ -16,6 +16,27 @@ yarn
 
 ## Usage
 
+### Docker Setup
+
+To run the application on your local machine, you must first build it as a Docker image: 
+
+```sh
+docker build -t fulcrum-desktop:latest .
+docker run -it -d --name fulcrum_desktop --network="host" fulcrum-desktop:latest
+```
+
+Each application command must be executed as follows:
+
+```sh
+docker exec -it fulcrum_desktop bash ./run [COMMAND]
+```
+
+Usage example:
+
+```sh
+docker exec -it fulcrum_desktop bash ./run fulcrum setup --org 'Organization Name'
+```
+
 ### Commands
 
 Fulcrum Desktop has several built-in commands to setup your database with your Fulcrum account.
