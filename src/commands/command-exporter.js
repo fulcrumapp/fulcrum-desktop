@@ -13,17 +13,19 @@ import * as s3 from '../plugins/s3/plugin-s3-module';
 import * as geopackage from '../plugins/geopackage/plugin-geopackage-module';
 
 const filteredEnabledPlugins = () => {
-    const file = path.join(process.cwd(), 'config','plugin.json');
+    const filePath = path.join(process.cwd(), 'config','plugin.json');
 
-    const readFile = fs.readFileSync(file);
+    const readFile = fs.readFileSync(filePath);
 
-    const fileAsArray = Object.entries(JSON.parse(readFile));
+    const config = JSON.parse(readFile) 
 
-    const filterEnabledPlugins = fileAsArray.filter(([key, value]) => value == true);
-
-    const filteredPlugins = Object.fromEntries(filterEnabledPlugins);
-
-    const enabledPluginNames = Object.keys(filteredPlugins);
+    const enabledPluginNames = Object.entries(config).reduce((plugins, [plugin, isActive]) => {
+        if (isActive) {
+            plugins.push(plugin);
+        }
+        
+        return plugins;
+    }, []);
 
     const pluginModules = [geopackage, media, mssql, postgres, reports, s3];
 
