@@ -16,26 +16,47 @@ yarn
 
 ## Usage
 
+The first step to use the application is to enable the plugins you want to use during the execution in the `plugin.json` file in the config folder of the repository:
+
+```sh
+{
+    "postgres": true,
+    "mssql": false,
+    "media": false,
+    "reports": false,
+    "geopackage": false,
+    "s3": false
+}
+```
+
 ### Docker Setup
 
 To run the application on your local machine, you must first build it as a Docker image: 
 
 ```sh
 docker build -t fulcrum-desktop:latest .
-docker run -it -d --name fulcrum_desktop --network="host" fulcrum-desktop:latest
+docker run -it -d --name fulcrum-desktop --network="host" fulcrum-desktop:latest
 ```
 
 Each application command must be executed as follows:
 
 ```sh
-docker exec -it fulcrum_desktop bash ./run [COMMAND]
+docker exec -it fulcrum-desktop bash ./run [COMMAND]
 ```
 
 Usage example:
 
 ```sh
-docker exec -it fulcrum_desktop bash ./run fulcrum setup --org 'Organization Name'
+docker exec -it fulcrum-desktop bash ./run fulcrum setup --org 'Organization Name' --token '<token>'
 ```
+
+If you have already executed a plugin and want to use another one, you must execute the following command:
+
+```sh
+docker run -it -d --name fulcrum-desktop --network="host" -v $PWD/config:/fulcrum-desktop/config fulcrum-desktop:latest
+```
+
+Remove the current image and run again to see the changes reflected during the app.
 
 ### Commands
 
@@ -50,8 +71,8 @@ Run the `fulcrum` command to list the various arguments and options available.
 You can pass the credentials or Api token to authenticate with your Fulcrum account to configure your local database:
 
 ```sh
-fulcrum setup --org 'Organization Name' --email 'EMAIL' --password 'SECRET'
 fulcrum setup --org 'Organization Name' --token '<token>'
+fulcrum setup --org 'Organization Name' --email 'EMAIL' --password 'SECRET'
 ```
 
 #### Sync the given account
@@ -156,16 +177,10 @@ In addition to syncing database records. Fulcrum Desktop supports intelligently 
 
 Concurrent file downloads and automatic retries for Fulcrum media files (photos, videos, audio, signatures) and associated track files for spatial video & audio (gpx, kml, geojson, json, srt).
 
-Download all media files for your Organization:
+Download all media files for your Organization with the following command. You can pass the directory where you want to storage these files with the `--media-path` option:
 
 ```sh
-fulcrum media --org 'Organization Name'
-```
-
-You can pass the directory where you want to storage these files with the `--media-path` option, but the default path is:
-
-```sh
-/.fulcrum/media
+fulcrum media --org 'Organization Name' --media-path ~/.fulcrum/media
 ```
 
 #### S3
@@ -184,6 +199,75 @@ Generate custom PDF reports from Fulcrum data. To customize reports, edit templa
 
 ```sh
 fulcrum reports --org 'Organization Name' --form 'Form Name' --template custom.ejs
+```
+
+##
+
+## Error code catalog
+
+This is a list of possible errors that may appear during the execution of the app:
+
+### General errors
+
+**Enabling Plugins Error**
+
+If you have enabled more than one sync plugin (MSSQL, Postgres, S3), the following error will be executed:
+
+```sh
+It's no allowed to enable more than one sync plugin at the same time.
+```
+
+Please, make sure to enable only one synchronization plugin during app execution.
+
+**Authentication error**
+
+If you pass to the geopackage command an organization that is not setup or is invalid you will get the following error:
+
+```sh
+Unable to find account InvalidOrganizationName
+```
+
+Make sure you define the organization name correctly or re-setup your Fulcrum credentials.
+
+**Reset organization error**
+
+If you get this error when executing the `reset` command:
+
+```sh
+ConnectionError: Login failed for user ''.
+```
+
+You must pass it the username and password of the plugin you used to sync. For example:
+
+```sh
+fulcrum reset --org 'Organization Name' --mssql-user 'MYUSER' --mssql-password "MYPASSWORD"
+```
+
+**MSSQL Plugin**
+
+If you're synchronizing your database with MSSQL Plugin and you get this error:
+
+```sh
+CREATE TABLE failed because column '' in table '' exceeds the maximum of 1024 columns.
+```
+
+Contact your provider.
+
+**Reports Plugin**
+
+If you have an error similar to this one:
+
+```sh
+Error Error: write EPIPE
+Error: spawn [ROUTE] ENOENT
+```
+
+You must make sure to pass the correct directory of `--reports-wkhtmltopdf` option in your machine:
+
+Default path:
+
+```sh
+/usr/local/bin/wkhtmltopdf
 ```
 
 ##

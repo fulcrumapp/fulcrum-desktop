@@ -1,6 +1,6 @@
 {
-    "postgres": false,
-    "mssql": true,
+    "postgres": true,
+    "mssql": false,
     "media": false,
     "reports": false,
     "geopackage": false,

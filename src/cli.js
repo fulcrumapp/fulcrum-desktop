@@ -37,6 +37,13 @@ export default class CLI {
 
     cli.$0 = '';
 
+    const sincronizationPlugins= ['s3', 'mssql', 'postgres'];
+
+    if (plugins.filter(plugin => sincronizationPlugins.includes(plugin.command)).length > 1) {
+      fulcrum.logger.error(`It's no allowed to enable more than one sync plugin at the same time.`.red);
+      return
+    }
+
     const enabledCommands = commands.concat(plugins);
 
     this.argv = await cli.command(enabledCommands)

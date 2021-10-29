@@ -993,7 +993,6 @@ exports.builder = {
     default: false
   }
 },
-
 exports.handler = async () => {
   await activate();
 
