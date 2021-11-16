@@ -45,6 +45,15 @@ Each application command must be executed as follows:
 docker exec -it fulcrum-desktop bash ./run [COMMAND]
 ```
 
+*NOTE - explain the --network & --add-host flags per the following 3 deployment patterns:
+- FD Docker & local DB  (ex. localhost Pg)
+- FD Docker & remote DB (ex. MSSQL Server on AWS)
+- FD Docker & DB Docker (ex. MSSQL Server on Mac)
+docker run -it -d --name fulcrum-desktop --network="host" fulcrum-desktop:latest
+docker run -it -d --name fulcrum-desktop --add-host host.docker.internal:host-gateway fulcrum-desktop:latest 
+**
+
+
 Usage example:
 
 ```sh
