@@ -28,6 +28,7 @@ The first step to use the application is to enable the plugins you want to use d
     "s3": false
 }
 ```
+*NOTE - Only 1 plug-in at a time - to verify
 
 ### Docker Setup
 
