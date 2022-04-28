@@ -170,7 +170,7 @@
     "yarn-run-all": "^3.1.1"
   },
   "dependencies": {
-    "async": "^2.4.0",
+    "async": "^2.6.4",
     "bluebird": "^3.3.5",
     "colors": "^1.1.2",
     "commander": "^2.9.0",
