@@ -36,6 +36,21 @@ To run the application on your local machine, you must first build it as a Docke
 
 ```sh
 docker build -t fulcrum-desktop:latest .
+```
+
+Once this process is finished, you must run the image in background.
+
+**If you are running the application on a Mac/Windows use this command:**
+
+```sh
+docker run -it -d --name fulcrum-desktop --add-host host.docker.internal:host-gateway fulcrum-desktop:latest
+```
+
+For make the connection from inside of the Docker container to the localhost of your machine, you must to specify in the host flag this: `host.docker.internal`
+
+**If you are on Linux, use this one:**
+
+```sh
 docker run -it -d --name fulcrum-desktop --network="host" fulcrum-desktop:latest
 ```
 
@@ -252,6 +267,18 @@ You must pass it the username and password of the plugin you used to sync. For e
 ```sh
 fulcrum reset --org 'Organization Name' --mssql-user 'MYUSER' --mssql-password "MYPASSWORD"
 ```
+
+**PostgreSQL Plugin**
+
+If you're synchronizing your database with PostgreSQL Plugin and you get this error:
+
+```sh
+error: type "geometry" does not exist
+```
+
+You must create/enable the PostGIS extension:
+
+`CREATE EXTENSION postgis;`
 
 **MSSQL Plugin**
 
