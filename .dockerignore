@@ -1,0 +1,3 @@
+#Ignore passwords file
+node_modules/
+npm-debug.log

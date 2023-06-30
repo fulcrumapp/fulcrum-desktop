@@ -64,7 +64,7 @@ RUN apt-get update -y && apt-get install -y \
     libx11-xcb1
 
 # libssql1.0.0 dependency for wkhtmltopdf
-RUN curl http://security.ubuntu.com/ubuntu/pool/main/o/openssl1.0/libssl1.0.0_1.0.2n-1ubuntu5.7_amd64.deb > ~/libssl.deb
+RUN curl http://security.ubuntu.com/ubuntu/pool/main/o/openssl1.0/libssl1.0.0_1.0.2n-1ubuntu5.13_amd64.deb > ~/libssl.deb
 RUN dpkg -i ~/libssl.deb
 RUN rm -rf ~/libssl.deb
 
