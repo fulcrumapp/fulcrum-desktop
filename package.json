@@ -38,7 +38,7 @@
     "commander": "^2.9.0",
     "csv-string": "^2.3.0",
     "delimit-stream": "^0.1.0",
-    "ejs": "^2.4.1",
+    "ejs": "^3.1.7",
     "exif": "^0.6.0",
     "filesize": "^3.3.0",
     "fulcrum-core": "^0.13.3",
